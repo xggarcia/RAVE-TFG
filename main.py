@@ -284,11 +284,13 @@ def CleanUserData():
         ("outputs", "Generated outputs"),
     ]
     
-    # Check what exists
+    # Check what exists (exclude .gitkeep files from count)
     existing_dirs = []
     for dir_path, description in dirs_to_clean:
-        if os.path.exists(dir_path) and os.listdir(dir_path):
-            existing_dirs.append((dir_path, description))
+        if os.path.exists(dir_path):
+            contents = [f for f in os.listdir(dir_path) if f != '.gitkeep']
+            if contents:
+                existing_dirs.append((dir_path, description))
     
     if not existing_dirs:
         print("Nothing to clean. All user data directories are already empty.")
@@ -301,7 +303,8 @@ def CleanUserData():
     print("\nThe following directories will be PERMANENTLY DELETED:\n")
     
     for dir_path, description in existing_dirs:
-        file_count = sum(len(files) for _, _, files in os.walk(dir_path))
+        # Count files excluding .gitkeep
+        file_count = sum(1 for _, _, files in os.walk(dir_path) for f in files if f != '.gitkeep')
         print(f"  📁 {dir_path}")
         print(f"     └── {description} ({file_count} files)")
     
@@ -329,8 +332,10 @@ def CleanUserData():
     
     for dir_path, description in existing_dirs:
         try:
-            # Remove all contents but keep the directory
+            # Remove all contents but keep the directory and .gitkeep files
             for item in os.listdir(dir_path):
+                if item == '.gitkeep':
+                    continue  # Preserve .gitkeep files
                 item_path = os.path.join(dir_path, item)
                 if os.path.isfile(item_path):
                     os.remove(item_path)

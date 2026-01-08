@@ -34,7 +34,7 @@ RAVE-TFG/
 ### 1. Clone the repository
 
 ```bash
-git clone [<repository-url>](https://github.com/xggarcia/RAVE-TFG)
+git clone https://github.com/xggarcia/RAVE-TFG
 cd RAVE-TFG
 ```
 

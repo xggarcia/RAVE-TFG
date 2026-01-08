@@ -232,19 +232,10 @@ python main.py clean
 
 ## Training Tips
 
-### How Long Does Training Take?
-
-Training time depends on:
-- Dataset size
-- GPU power
-- Configuration used
-
-Expect **several hours to days** for a fully trained model. You can stop training at any time and export the latest checkpoint.
-
 ### Recommended Settings for Quick Testing
 
 ```bash
-python main.py train --name test_model --config v2_small --val-every 500 --max-steps 10000
+python main.py train --name test_model --config v2_small --val-every 50 --max-steps 1000
 ```
 
 ### Resume Training

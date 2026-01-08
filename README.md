@@ -19,16 +19,6 @@ RAVE-TFG/
 └── outputs/             # Generated audio files
 ```
 
-## Requirements
-
-- Python 3.9+
-- PyTorch 2.0+
-- CUDA-compatible GPU (recommended)
-- Minimum GPU memory depends on config:
-  - `v2_small`: 8 GB
-  - `v2`: 16 GB
-  - `discrete`: 18 GB
-  - `v3`: 32 GB
 
 ## Setup
 

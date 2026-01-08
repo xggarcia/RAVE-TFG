@@ -328,7 +328,7 @@ def CleanUserData():
         return False
     
     # Perform cleanup
-    print("\n🗑️  Deleting user data...")
+    print("\n  Deleting user data...")
     
     for dir_path, description in existing_dirs:
         try:
@@ -379,7 +379,6 @@ if __name__ == "__main__":
     # Export command
     export_parser = subparsers.add_parser("export", help="Export trained model to TorchScript")
     export_parser.add_argument("--run-path", help="Path to training run folder (auto-detects if not provided)")
-    export_parser.add_argument("--no-streaming", action="store_true", help="Disable streaming mode")
     
     # Workflow command (full pipeline)
     workflow_parser = subparsers.add_parser("workflow", help="Run complete workflow: preprocess → train → export")
@@ -424,8 +423,7 @@ if __name__ == "__main__":
     
     elif args.command == "export":
         ExportModel(
-            run_path=args.run_path,
-            streaming=not args.no_streaming
+            run_path=args.run_path
         )
     
     elif args.command == "workflow":

@@ -12,9 +12,10 @@ RAVE-TFG/
 │   └── user_data/       # Place your own audio here
 ├── preprocessed_data/   # Preprocessed datasets (generated)
 ├── models/
-│   ├── demo/            # Pre-trained demo models
-│   ├── trained/         # Exported models (.ts files)
-│   └── checkpoints/     # Training checkpoints
+│   ├── demo_model/      # Pre-trained demo models
+│   └── user_model/      # User trained models
+│       ├── checkpoints/ # Training checkpoints
+│       └── exported_model/ # Exported models (.ts files)
 └── outputs/             # Generated audio files
 ```
 
@@ -153,7 +154,7 @@ python main.py export [options]
 **Example:**
 ```bash
 python main.py export
-python main.py export --run-path models/checkpoints/my_model/version_0
+python main.py export --run-path models/user_model/checkpoints/my_model/version_0
 ```
 
 ---
@@ -193,7 +194,7 @@ python main.py generate [options]
 **Options:**
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--model` | models/demo/demo_model.ts | Path to model file |
+| `--model` | models/demo_model/demo_model.ts | Path to model file |
 | `--audio` | input_data/demo_data/audio1.wav | Path to sample audio file (used to determine latent dimensions) |
 | `--output` | generated | Output filename (without extension) |
 | `--no-random` | False | Use input audio's latent instead of random |
@@ -204,10 +205,10 @@ python main.py generate [options]
 python main.py generate
 
 # Generate random audio with custom model
-python main.py generate --model models/trained/my_model.ts --audio input.wav --output my_output
+python main.py generate --model models/user_model/exported_model/my_model.ts --audio input.wav --output my_output
 
 # Reconstruct input audio through the model (keeps original length)
-python main.py generate --model models/trained/my_model.ts --audio input.wav --no-random
+python main.py generate --model models/user_model/exported_model/my_model.ts --audio input.wav --no-random
 ```
 
 ---
@@ -234,7 +235,7 @@ ExportModel()
 
 # Generate audio
 UseModel(
-    model_path="models/trained/my_model.ts",
+    model_path="models/user_model/exported_model/my_model.ts",
     audio_path="input.wav",
     output_name="generated_audio",
     random=True
@@ -269,7 +270,7 @@ Training automatically resumes from the latest checkpoint if one exists.
 Training progress is logged to TensorBoard. View with:
 
 ```bash
-tensorboard --logdir models/checkpoints
+tensorboard --logdir models/user_model/checkpoints
 ```
 
 ---

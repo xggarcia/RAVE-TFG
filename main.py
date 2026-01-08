@@ -10,7 +10,7 @@ import subprocess
 torch.set_grad_enabled(False)
 
 
-def UseModel(model_path = "models/demo/demo_model.ts", audio_path='data/demo/audio1.wav', sr=44100, random = True, output_name = "Output_audio", duration=30):
+def UseModel(model_path = "models/demo_model/demo_model.ts", audio_path='data/demo/audio1.wav', sr=44100, random = True, output_name = "Output_audio", duration=30):
     """
     Generate audio from random latent vectors using a RAVE model.
     
@@ -99,7 +99,7 @@ def TrainModel(
     name="my_model",
     config="v2_small",
     db_path="preprocessed_data",
-    out_path="models/checkpoints",
+    out_path="models/user_model/checkpoints",
     channels=1,
     val_every=1000,
     save_every=10000,
@@ -154,14 +154,14 @@ def TrainModel(
     return out_path
 
 
-def ExportModel(run_path=None, output_path="models/trained", streaming=True):
+def ExportModel(run_path=None, output_path="models/user_model/exported_model", streaming=True):
     """
     Export a trained RAVE model to a TorchScript file.
     
     Args:
-        run_path: Path to the training run folder (e.g., models/checkpoints/model_name/version_X)
-                  If None, will look for the latest run in models/checkpoints
-        output_path: Path where to save the exported .ts file (default: models/trained)
+        run_path: Path to the training run folder (e.g., models/user_model/checkpoints/model_name/version_X)
+                  If None, will look for the latest run in models/user_model/checkpoints
+        output_path: Path where to save the exported .ts file (default: models/user_model/exported_model)
         streaming: If True, enables cached convolutions for realtime processing.
                    Required to avoid clicking artifacts in Max/MSP and other realtime environments.
     
@@ -174,7 +174,7 @@ def ExportModel(run_path=None, output_path="models/trained", streaming=True):
     
     # If no run path provided, try to find the latest one
     if run_path is None:
-        checkpoints_dir = os.path.abspath("models/checkpoints")
+        checkpoints_dir = os.path.abspath("models/user_model/checkpoints")
         if os.path.exists(checkpoints_dir):
             # Find the most recent run
             runs = []
@@ -191,7 +191,7 @@ def ExportModel(run_path=None, output_path="models/trained", streaming=True):
                 run_path = max(runs, key=os.path.getmtime)
                 print(f"Auto-detected run: {run_path}")
             else:
-                raise FileNotFoundError("No training runs found in models/checkpoints")
+                raise FileNotFoundError("No training runs found in models/user_model/checkpoints")
         else:
             raise FileNotFoundError(f"Checkpoints directory not found: {checkpoints_dir}")
     
@@ -276,7 +276,7 @@ def train_workflow(
         name=model_name,
         config=config,
         db_path=data_path,
-        out_path="models/checkpoints",
+        out_path="models/user_model/checkpoints",
         channels=channels,
         val_every=val_every,
         save_every=save_every,
@@ -336,7 +336,7 @@ if __name__ == "__main__":
     
     # Generate command (use model)
     generate_parser = subparsers.add_parser("generate", help="Generate audio using a trained model")
-    generate_parser.add_argument("--model", default="models/demo/demo_model.ts", help="Path to model file")
+    generate_parser.add_argument("--model", default="models/demo_model/demo_model.ts", help="Path to model file")
     generate_parser.add_argument("--audio", default="input_data/demo_data/audio1.wav", help="Path to sample audio file")
     generate_parser.add_argument("--output", default="generated", help="Output filename (without extension)")
     generate_parser.add_argument("--no-random", action="store_true", help="Use input audio's latent instead of random")

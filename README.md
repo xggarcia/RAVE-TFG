@@ -72,6 +72,7 @@ python main.py <command> [options]
 | `export` | Export trained model to TorchScript |
 | `workflow` | Run complete pipeline (preprocess → train → export) |
 | `generate` | Generate audio using a trained model |
+| `clean` | Delete all user data (with double confirmation) |
 
 ---
 
@@ -210,6 +211,31 @@ python main.py generate --model models/user_model/exported_model/my_model.ts --a
 # Reconstruct input audio through the model (keeps original length)
 python main.py generate --model models/user_model/exported_model/my_model.ts --audio input.wav --no-random
 ```
+
+---
+
+### Clean User Data
+
+Delete all user-generated data (preprocessed datasets, checkpoints, exported models, and outputs). This command requires **double confirmation** for safety.
+
+```bash
+python main.py clean
+```
+
+**What gets deleted:**
+- `preprocessed_data/` - Preprocessed datasets
+- `models/user_model/checkpoints/` - Training checkpoints
+- `models/user_model/exported_model/` - Exported .ts models
+- `outputs/` - Generated audio files
+
+**Example:**
+```bash
+python main.py clean
+```
+
+**Confirmation process:**
+1. First prompt: Type `yes` to confirm
+2. Second prompt: Type `DELETE ALL USER DATA` exactly
 
 ---
 

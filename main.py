@@ -1,4 +1,5 @@
 import os
+import shutil
 from IPython.display import Audio, display
 import librosa as li
 import soundfile as sf
@@ -165,10 +166,17 @@ def ExportModel(run_path=None, output_path="models/user_model/exported_model", s
     run_path = os.path.abspath(run_path)
     
     # Check if checkpoint files exist in the run directory
-    checkpoint_files = [f for f in os.listdir(run_path) if f.endswith('.ckpt')]
+    # PyTorch Lightning saves checkpoints in a 'checkpoints' subfolder
+    checkpoint_dir = os.path.join(run_path, "checkpoints")
+    if os.path.exists(checkpoint_dir):
+        checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.endswith('.ckpt')]
+    else:
+        # Fallback: check directly in run_path (for older RAVE versions or manual setups)
+        checkpoint_files = [f for f in os.listdir(run_path) if f.endswith('.ckpt')]
+    
     if not checkpoint_files:
         raise FileNotFoundError(
-            f"No checkpoint files (.ckpt) found in {run_path}.\n"
+            f"No checkpoint files (.ckpt) found in {run_path} or {run_path}/checkpoints.\n"
             "You need to train the model first. Run TrainModel() and let it train "
             "for at least a few epochs until a checkpoint is saved."
         )
@@ -185,12 +193,27 @@ def ExportModel(run_path=None, output_path="models/user_model/exported_model", s
         cmd.append("--streaming")
     
     print(f"Exporting model from: {run_path}")
-    print(f"Checkpoint found: {checkpoint_files[-1]}")
+    print(f"Checkpoints found: {checkpoint_files}")
     print(f"Streaming mode: {streaming}")
     print(f"Command: {' '.join(cmd)}")
     print()
     
     subprocess.run(cmd, check=True)
+    
+    # Find the exported .ts file and move it to the output directory
+    # RAVE exports to the checkpoints directory by default
+    export_search_dir = checkpoint_dir if os.path.exists(checkpoint_dir) else run_path
+    exported_files = [f for f in os.listdir(export_search_dir) if f.endswith('.ts')]
+    
+    if exported_files:
+        # Get the most recently created .ts file
+        exported_files_full = [os.path.join(export_search_dir, f) for f in exported_files]
+        latest_export = max(exported_files_full, key=os.path.getmtime)
+        
+        # Move to output directory
+        dest_path = os.path.join(output_path, os.path.basename(latest_export))
+        shutil.move(latest_export, dest_path)
+        print(f"Model moved to: {dest_path}")
     
     print(f"Export completed!")
     return output_path
@@ -247,6 +270,83 @@ def train_workflow(
     return exported_path
 
 
+def CleanUserData():
+    """
+    Delete all user-related data: preprocessed data, checkpoints, exported models, and outputs.
+    Requires double confirmation for safety.
+    """
+    
+    # Directories to clean
+    dirs_to_clean = [
+        ("preprocessed_data", "Preprocessed dataset"),
+        ("models/user_model/checkpoints", "Training checkpoints"),
+        ("models/user_model/exported_model", "Exported models"),
+        ("outputs", "Generated outputs"),
+    ]
+    
+    # Check what exists
+    existing_dirs = []
+    for dir_path, description in dirs_to_clean:
+        if os.path.exists(dir_path) and os.listdir(dir_path):
+            existing_dirs.append((dir_path, description))
+    
+    if not existing_dirs:
+        print("Nothing to clean. All user data directories are already empty.")
+        return False
+    
+    # Show what will be deleted
+    print("=" * 50)
+    print("⚠️  WARNING: USER DATA CLEANUP ⚠️")
+    print("=" * 50)
+    print("\nThe following directories will be PERMANENTLY DELETED:\n")
+    
+    for dir_path, description in existing_dirs:
+        file_count = sum(len(files) for _, _, files in os.walk(dir_path))
+        print(f"  📁 {dir_path}")
+        print(f"     └── {description} ({file_count} files)")
+    
+    print("\n" + "=" * 50)
+    
+    # First confirmation
+    print("\n🔴 FIRST CONFIRMATION:")
+    confirm1 = input("Are you sure you want to delete all user data? (yes/no): ").strip().lower()
+    
+    if confirm1 != "yes":
+        print("\n❌ Cleanup cancelled.")
+        return False
+    
+    # Second confirmation
+    print("\n🔴 SECOND CONFIRMATION:")
+    print("Type 'DELETE ALL USER DATA' to confirm:")
+    confirm2 = input("> ").strip()
+    
+    if confirm2 != "DELETE ALL USER DATA":
+        print("\n❌ Cleanup cancelled. Confirmation text did not match.")
+        return False
+    
+    # Perform cleanup
+    print("\n🗑️  Deleting user data...")
+    
+    for dir_path, description in existing_dirs:
+        try:
+            # Remove all contents but keep the directory
+            for item in os.listdir(dir_path):
+                item_path = os.path.join(dir_path, item)
+                if os.path.isfile(item_path):
+                    os.remove(item_path)
+                elif os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+            print(f"  ✅ Cleaned: {dir_path}")
+        except Exception as e:
+            print(f"  ❌ Error cleaning {dir_path}: {e}")
+    
+    print("\n" + "=" * 50)
+    print("✅ User data cleanup completed!")
+    print("=" * 50)
+    
+    return True
+
+
 if __name__ == "__main__":
     import argparse
     
@@ -274,6 +374,7 @@ if __name__ == "__main__":
     # Export command
     export_parser = subparsers.add_parser("export", help="Export trained model to TorchScript")
     export_parser.add_argument("--run-path", help="Path to training run folder (auto-detects if not provided)")
+    export_parser.add_argument("--no-streaming", action="store_true", help="Disable streaming mode")
     
     # Workflow command (full pipeline)
     workflow_parser = subparsers.add_parser("workflow", help="Run complete workflow: preprocess → train → export")
@@ -290,6 +391,9 @@ if __name__ == "__main__":
     generate_parser.add_argument("--audio", default="input_data/demo_data/audio1.wav", help="Path to sample audio file")
     generate_parser.add_argument("--output", default="generated", help="Output filename (without extension)")
     generate_parser.add_argument("--no-random", action="store_true", help="Use input audio's latent instead of random")
+    
+    # Clean command (delete all user data)
+    clean_parser = subparsers.add_parser("clean", help="Delete all user data (preprocessed, checkpoints, exports, outputs)")
     
     args = parser.parse_args()
     
@@ -337,3 +441,5 @@ if __name__ == "__main__":
             random=not args.no_random
         )
     
+    elif args.command == "clean":
+        CleanUserData()

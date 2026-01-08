@@ -14,12 +14,6 @@ def UseModel(model_path = "models/demo_model/demo_model.ts", audio_path='data/de
     """
     Generate audio from random latent vectors using a RAVE model.
     
-    Args:
-        model_path: Path to the RAVE model (.ts file)
-        audio_path: Path to a sample audio file (used to get latent dimensions)
-        sr: Sample rate for audio
-        random: Whether to generate random latent vectors or use the latent vector of the input audio
-        duration: Duration in seconds for random generation (default: 30)
     """
     model = torch.jit.load(model_path).eval()
 
@@ -33,7 +27,6 @@ def UseModel(model_path = "models/demo_model/demo_model.ts", audio_path='data/de
     # Generate audio from random numbers
     if random:
         # Calculate latent size for desired duration (30s default)
-        # RAVE typically has a compression ratio, estimate from the loaded audio
         latent_per_second = z.shape[-1] / (len(x.reshape(-1)) / sr)
         target_latent_length = int(latent_per_second * duration)
         z_shape = (z.shape[0], z.shape[1], target_latent_length)
@@ -42,7 +35,7 @@ def UseModel(model_path = "models/demo_model/demo_model.ts", audio_path='data/de
         z_random = z
     x_hat = model.decode(z_random).numpy().reshape(-1)
     
-    # Save and display the generated audio
+    # Save the generated audio
 
     os.makedirs("outputs", exist_ok=True)
     output_path = os.path.join("outputs", f"{output_name}.wav")
@@ -56,14 +49,6 @@ def PreprocessDataset(audio_path, channels=1, lazy=True, max_db_size=10):
     """
     Preprocess the dataset.
     
-    Args:
-        audio_path: Path to folder containing audio files
-        channels: Number of audio channels (1 for mono, 2 for stereo)
-        lazy: If True, uses lazy loading (trains directly on raw files)
-        max_db_size: Maximum database size in GB (default 10, LMDB pre-allocates this on Windows)
-    
-    Returns:
-        data_path: Path to the preprocessed dataset
     """
     # Use absolute path to avoid RAVE bug with relative paths
     data_path = os.path.abspath("preprocessed_data")
@@ -109,16 +94,6 @@ def TrainModel(
     """
     Train a RAVE model.
     
-    Args:
-        name: Name for the model
-        config: Architecture configuration (v1, v2, v2_small, discrete, etc.)
-        db_path: Path to preprocessed dataset
-        out_path: Output path for model checkpoints
-        channels: Number of audio channels (1 for mono, 2 for stereo)
-        val_every: Checkpoint/validate every N steps (default: 1000 for frequent saves)
-        save_every: Save model every N steps (default: 10000)
-        max_steps: Maximum training steps (default: 6000000)
-        batch_size: Batch size (default: 8)
     """
     
     # Create output directory if it doesn't exist
@@ -157,16 +132,7 @@ def TrainModel(
 def ExportModel(run_path=None, output_path="models/user_model/exported_model", streaming=True):
     """
     Export a trained RAVE model to a TorchScript file.
-    
-    Args:
-        run_path: Path to the training run folder (e.g., models/user_model/checkpoints/model_name/version_X)
-                  If None, will look for the latest run in models/user_model/checkpoints
-        output_path: Path where to save the exported .ts file (default: models/user_model/exported_model)
-        streaming: If True, enables cached convolutions for realtime processing.
-                   Required to avoid clicking artifacts in Max/MSP and other realtime environments.
-    
-    Returns:
-        output_path: Path to the exported model
+
     """
     
     # Create output directory if it doesn't exist
@@ -246,21 +212,6 @@ def train_workflow(
     """
     Complete training workflow: preprocess → train → export
     
-    Args:
-        audio_path: Path to folder containing audio files
-        model_name: Name for the model
-        channels: Number of audio channels (1 for mono, 2 for stereo)
-        lazy: If True, uses lazy loading for preprocessing
-        max_db_size: Maximum database size in GB
-        config: Architecture configuration (v1, v2, v2_small, discrete, etc.)
-        val_every: Checkpoint every N steps
-        save_every: Save model every N steps
-        max_steps: Maximum training steps
-        batch_size: Batch size for training
-        streaming: If True, export with streaming mode for realtime use
-    
-    Returns:
-        exported_path: Path to the exported model
     """
     print("=" * 50)
     print("RAVE Training Workflow")
@@ -323,7 +274,6 @@ if __name__ == "__main__":
     # Export command
     export_parser = subparsers.add_parser("export", help="Export trained model to TorchScript")
     export_parser.add_argument("--run-path", help="Path to training run folder (auto-detects if not provided)")
-    export_parser.add_argument("--no-streaming", action="store_true", help="Disable streaming mode")
     
     # Workflow command (full pipeline)
     workflow_parser = subparsers.add_parser("workflow", help="Run complete workflow: preprocess → train → export")

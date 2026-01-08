@@ -148,7 +148,7 @@ python main.py export [options]
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--run-path` | Auto-detect | Path to training run folder |
-| `--no-streaming` | False | Disable streaming mode |
+
 
 
 **Example:**
@@ -213,36 +213,6 @@ python main.py generate --model models/user_model/exported_model/my_model.ts --a
 
 ---
 
-## Python API
-
-You can also use the functions directly in Python:
-
-```python
-from main import PreprocessDataset, TrainModel, ExportModel, UseModel, train_workflow
-
-# Option 1: Complete workflow
-train_workflow(
-    audio_path="input_data/my_audio",
-    model_name="my_model",
-    config="v2_small",
-    channels=1
-)
-
-# Option 2: Step by step
-PreprocessDataset("input_data/my_audio", channels=1)
-TrainModel(name="my_model", config="v2_small")
-ExportModel()
-
-# Generate audio
-UseModel(
-    model_path="models/user_model/exported_model/my_model.ts",
-    audio_path="input.wav",
-    output_name="generated_audio",
-    random=True
-)
-```
-
----
 
 ## Training Tips
 
@@ -297,24 +267,10 @@ Make sure to export with streaming mode (default). If you used `--no-streaming`,
 python main.py export
 ```
 
-### CUDA out of memory
-
-Try a smaller config:
-```bash
-python main.py train --config v2_small --batch-size 4
 ```
 
 ---
 
-## File Formats
-
-| Extension | Description |
-|-----------|-------------|
-| `.ts` | TorchScript model (exported, ready for use) |
-| `.ckpt` | Training checkpoint |
-| `.mdb` | LMDB database (preprocessed audio) |
-
----
 
 ## License
 

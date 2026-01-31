@@ -1,4 +1,6 @@
+# -*- coding: utf-8 -*-
 import os
+import sys
 import shutil
 from IPython.display import Audio, display
 import librosa as li
@@ -7,6 +9,18 @@ import numpy as np
 import requests
 import torch
 import subprocess
+import sounddevice as sd
+import time
+
+# Configure UTF-8 encoding for Windows console
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except AttributeError:
+        import codecs
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
 torch.set_grad_enabled(False)
 
@@ -44,6 +58,130 @@ def UseModel(model_path = "models/demo_model/demo_model.ts", audio_path='data/de
     print(f"Audio generated and saved to: {output_path}")
     return output_path
 
+
+
+def StreamAudio(model_path="models/demo_model/demo_model.ts", sr=44100, latent_size=None, chunk_duration=1.0):
+    """
+    Generate and stream audio in real-time using a RAVE model.
+    The model continuously generates audio from random latent vectors.
+    
+    Args:
+        model_path: Path to the .ts model file (TorchScript exported model)
+        sr: Sample rate (default: 44100 Hz)
+        latent_size: Size of the latent vector (default: auto-detect from model)
+        chunk_duration: Duration of each audio chunk in seconds (default: 1.0s)
+    """
+    print("=" * 50)
+    print("RAVE Real-Time Audio Streaming")
+    print("=" * 50)
+    
+    # Check if model file exists
+    if not os.path.exists(model_path):
+        print(f"[X] Error: Model file not found: {model_path}")
+        
+        # Check if checkpoint exists as fallback
+        checkpoint_dir = os.path.dirname(model_path).replace("exported_model", "checkpoints")
+        if os.path.exists(checkpoint_dir):
+            print("\n[!] Aviso: Para mejor rendimiento en tiempo real, usa la opcion 'Exportar' primero.")
+            print("    No se encontro el archivo .ts optimizado.")
+            print(f"    Busca checkpoints en: {checkpoint_dir}")
+        return None
+    
+    try:
+        # Load the model
+        print(f"\nCargando modelo: {model_path}")
+        model = torch.jit.load(model_path).eval()
+        print("[OK] Modelo cargado exitosamente")
+        
+        # Get latent dimensions from model by encoding a dummy input
+        print("\n[*] Detectando dimensiones del modelo...")
+        dummy_length = sr * 2  # 2 seconds of audio
+        dummy_audio = torch.randn(1, 1, dummy_length)
+        
+        with torch.no_grad():
+            dummy_z = model.encode(dummy_audio)
+        
+        # Get the actual latent dimensions
+        detected_latent_size = dummy_z.shape[1]
+        compression_ratio = dummy_length / dummy_z.shape[2]
+        
+        if latent_size is None:
+            latent_size = detected_latent_size
+        
+        print(f"    Latent dims detectados: {detected_latent_size}")
+        print(f"    Compression ratio: ~{compression_ratio:.0f}x")
+        
+        # Calculate chunk size
+        chunk_samples = int(sr * chunk_duration)
+        latent_length = max(1, int(chunk_samples / compression_ratio))
+        
+        print(f"\nConfiguracion:")
+        print(f"  Sample rate: {sr} Hz")
+        print(f"  Chunk duration: {chunk_duration}s ({chunk_samples} samples)")
+        print(f"  Latent shape: (1, {latent_size}, {latent_length})")
+        print(f"\n[>] Iniciando streaming de audio...")
+        print("    Presiona Ctrl+C para detener\n")
+        
+        # Initialize audio stream
+        stream = sd.OutputStream(
+            samplerate=sr,
+            channels=1,
+            dtype='float32'
+        )
+        
+        stream.start()
+        
+        try:
+            iteration = 0
+            while True:
+                # Generate random latent vector (latent walk/random noise)
+                z_random = torch.randn(1, latent_size, latent_length).float()
+                
+                # Decode to audio
+                with torch.no_grad():
+                    audio_chunk = model.decode(z_random).numpy().reshape(-1)
+                
+                # Check if audio was generated
+                if iteration == 0:
+                    print(f"[DEBUG] Audio chunk generado: min={audio_chunk.min():.3f}, max={audio_chunk.max():.3f}, mean={np.abs(audio_chunk).mean():.3f}")
+                
+                # Normalize and amplify
+                max_val = np.abs(audio_chunk).max()
+                if max_val > 0:
+                    # Normalize to full range and apply gain
+                    audio_chunk = (audio_chunk / max_val) * 0.9  # 90% of full scale
+                
+                # Ensure correct size
+                if len(audio_chunk) > chunk_samples:
+                    audio_chunk = audio_chunk[:chunk_samples]
+                elif len(audio_chunk) < chunk_samples:
+                    audio_chunk = np.pad(audio_chunk, (0, chunk_samples - len(audio_chunk)))
+                
+                # Write to audio stream
+                stream.write(audio_chunk.astype(np.float32))
+                
+                # Progress indicator
+                iteration += 1
+                if iteration % 5 == 0:
+                    print(f"  [>>] Streaming... ({iteration * chunk_duration:.1f}s generados) | RMS: {np.sqrt(np.mean(audio_chunk**2)):.3f}", end='\r')
+                
+        except KeyboardInterrupt:
+            print("\n\n[STOP] Streaming detenido por el usuario")
+        
+        finally:
+            # Clean up
+            stream.stop()
+            stream.close()
+            print("\n[OK] Stream cerrado correctamente")
+            print("=" * 50)
+    
+    except Exception as e:
+        print(f"\n[X] Error durante el streaming: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+    
+    return True
 
 
 def PreprocessDataset(audio_path, channels=1, lazy=True, max_db_size=10):
@@ -352,8 +490,166 @@ def CleanUserData():
     return True
 
 
+def interactive_menu():
+    """
+    Interactive menu for easy RAVE workflow navigation.
+    """
+    while True:
+        print("\n" + "=" * 60)
+        print("  RAVE-TFG - Menu Interactivo")
+        print("=" * 60)
+        print("\n[*] Generacion de Audio:")
+        print("  A) Generar audio desde archivo (UseModel)")
+        print("  B) Entrenar modelo completo (Workflow)")
+        print("  C) Generacion en Tiempo Real (Streaming) ** NUEVO **")
+        print("\n[+] Operaciones Avanzadas:")
+        print("  1) Preprocesar dataset")
+        print("  2) Entrenar modelo")
+        print("  3) Exportar modelo")
+        print("\n[#] Utilidades:")
+        print("  4) Limpiar datos de usuario")
+        print("  0) Salir")
+        print("\n" + "=" * 60)
+        
+        choice = input("\nSelecciona una opcion: ").strip().upper()
+        
+        if choice == "A":
+            print("\n--- Opcion A: Generar Audio desde Archivo ---")
+            model_choice = input("Usar modelo DEMO (1) o PROPIO (2)? [1]: ").strip() or "1"
+            
+            if model_choice == "1":
+                model_path = "models/demo_model/demo_model.ts"
+                audio_path = "input_data/demo_data/audio1.wav"
+            else:
+                model_path = input("Ruta al modelo .ts [models/user_model/exported_model/*.ts]: ").strip()
+                if not model_path:
+                    # Try to find exported model
+                    export_dir = "models/user_model/exported_model"
+                    if os.path.exists(export_dir):
+                        ts_files = [f for f in os.listdir(export_dir) if f.endswith('.ts')]
+                        if ts_files:
+                            model_path = os.path.join(export_dir, ts_files[0])
+                            print(f"Usando: {model_path}")
+                        else:
+                            print("[X] No se encontraron modelos .ts exportados")
+                            continue
+                    else:
+                        print("[X] Directorio de modelos exportados no existe")
+                        continue
+                
+                audio_path = input("Ruta al audio de muestra: ").strip()
+            
+            output_name = input("Nombre de salida [generated]: ").strip() or "generated"
+            duration = input("Duraci\u00f3n en segundos [30]: ").strip()
+            duration = int(duration) if duration else 30
+            
+            UseModel(model_path=model_path, audio_path=audio_path, output_name=output_name, duration=duration)
+            input("\nPresiona Enter para continuar...")
+        
+        elif choice == "B":
+            print("\n--- Opcion B: Workflow Completo de Entrenamiento ---")
+            audio_path = input("Ruta a la carpeta con audios: ").strip()
+            if not audio_path or not os.path.exists(audio_path):
+                print("[X] Ruta invalida")
+                continue
+            
+            model_name = input("Nombre del modelo [my_model]: ").strip() or "my_model"
+            config = input("Configuracion [v2_small/v2/v3]: ").strip() or "v2_small"
+            max_steps = input("Maximo de pasos [6000000]: ").strip()
+            max_steps = int(max_steps) if max_steps else 6000000
+            
+            train_workflow(
+                audio_path=audio_path,
+                model_name=model_name,
+                config=config,
+                max_steps=max_steps
+            )
+            input("\nPresiona Enter para continuar...")
+        
+        elif choice == "C":
+            print("\n--- Opcion C: Generacion en Tiempo Real (Streaming) ---")
+            model_choice = input("Usar modelo DEMO (1) o PROPIO (2)? [1]: ").strip() or "1"
+            
+            if model_choice == "1":
+                model_path = "models/demo_model/demo_model.ts"
+            else:
+                # Check for exported .ts file
+                export_dir = "models/user_model/exported_model"
+                if os.path.exists(export_dir):
+                    ts_files = [f for f in os.listdir(export_dir) if f.endswith('.ts')]
+                    if ts_files:
+                        model_path = os.path.join(export_dir, ts_files[0])
+                        print(f"[OK] Modelo .ts encontrado: {model_path}")
+                    else:
+                        print("\n[!] No se encontro archivo .ts exportado.")
+                        print("    Para mejor rendimiento en tiempo real, exporta tu modelo primero.")
+                        
+                        # Check for checkpoint as fallback
+                        checkpoint_dir = "models/user_model/checkpoints"
+                        if os.path.exists(checkpoint_dir):
+                            print(f"    Puedes exportar tu modelo usando la opcion 3 del menu.")
+                        continue
+                else:
+                    print("[X] No existe el directorio de modelos exportados")
+                    continue
+            
+            print(f"\nUsando modelo: {model_path}")
+            sr = input("Sample rate [44100]: ").strip()
+            sr = int(sr) if sr else 44100
+            
+            chunk_duration = input("Duracion de chunk en segundos [1.0]: ").strip()
+            chunk_duration = float(chunk_duration) if chunk_duration else 1.0
+            
+            StreamAudio(model_path=model_path, sr=sr, chunk_duration=chunk_duration)
+            input("\\nPresiona Enter para continuar...")
+        
+        elif choice == "1":
+            print("\n--- Opcion 1: Preprocesar Dataset ---")
+            audio_path = input("Ruta a la carpeta con audios: ").strip()
+            if not audio_path or not os.path.exists(audio_path):
+                print("[X] Ruta invalida")
+                continue
+            
+            PreprocessDataset(audio_path=audio_path)
+            input("\nPresiona Enter para continuar...")
+        
+        elif choice == "2":
+            print("\n--- Opcion 2: Entrenar Modelo ---")
+            model_name = input("Nombre del modelo [my_model]: ").strip() or "my_model"
+            config = input("Configuracion [v2_small/v2/v3]: ").strip() or "v2_small"
+            
+            TrainModel(name=model_name, config=config)
+            input("\nPresiona Enter para continuar...")
+        
+        elif choice == "3":
+            print("\n--- Opcion 3: Exportar Modelo ---")
+            run_path = input("Ruta al run (dejar vacio para auto-detectar): ").strip() or None
+            
+            ExportModel(run_path=run_path)
+            input("\nPresiona Enter para continuar...")
+        
+        elif choice == "4":
+            print("\n--- Opcion 4: Limpiar Datos de Usuario ---")
+            CleanUserData()
+            input("\nPresiona Enter para continuar...")
+        
+        elif choice == "0":
+            print("\n¡Hasta luego!")
+            break
+        
+        else:
+            print("\n[X] Opcion invalida. Por favor, selecciona una opcion valida.")
+            input("Presiona Enter para continuar...")
+
+
 if __name__ == "__main__":
     import argparse
+    import sys
+    
+    # If no arguments provided, launch interactive menu
+    if len(sys.argv) == 1:
+        interactive_menu()
+        sys.exit(0)
     
     parser = argparse.ArgumentParser(description="RAVE Training and Inference CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -398,6 +694,13 @@ if __name__ == "__main__":
     
     # Clean command (delete all user data)
     clean_parser = subparsers.add_parser("clean", help="Delete all user data (preprocessed, checkpoints, exports, outputs)")
+    
+    # Stream command (real-time audio generation)
+    stream_parser = subparsers.add_parser("stream", help="Generate and stream audio in real-time (Opción C)")
+    stream_parser.add_argument("--model", default="models/demo_model/demo_model.ts", help="Path to .ts model file (default: demo model)")
+    stream_parser.add_argument("--sr", type=int, default=44100, help="Sample rate in Hz (default: 44100)")
+    stream_parser.add_argument("--latent-size", type=int, default=None, help="Latent vector size (default: auto-detect)")
+    stream_parser.add_argument("--chunk-duration", type=float, default=1.0, help="Audio chunk duration in seconds (default: 1.0)")
     
     args = parser.parse_args()
     
@@ -446,3 +749,11 @@ if __name__ == "__main__":
     
     elif args.command == "clean":
         CleanUserData()
+    
+    elif args.command == "stream":
+        StreamAudio(
+            model_path=args.model,
+            sr=args.sr,
+            latent_size=args.latent_size,
+            chunk_duration=args.chunk_duration
+        )

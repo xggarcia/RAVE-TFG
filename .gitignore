@@ -58,3 +58,9 @@ outputs/*
 # *.pt
 # *.pth
 # *.ckpt
+
+# User model files (large weights)
+models/user_model/**/*.ts
+models/user_model/**/*.pt
+models/user_model/**/*.pth
+models/user_model/**/*.ckpt

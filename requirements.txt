@@ -6,4 +6,5 @@ requests>=2.28.0
 torch>=2.0.0
 torchaudio>=2.0.0
 acids-rave>=2.3.0
+acids-msprior>=0.1.0
 sounddevice>=0.4.6

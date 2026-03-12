@@ -62,9 +62,21 @@ source .venv/bin/activate
 
 ### 3. Install dependencies
 
+**Windows:**
 ```bash
-pip install -r requirements.txt
+install\install.bat
 ```
+
+**Linux/macOS:**
+```bash
+chmod +x install/install.sh
+./install/install.sh
+```
+
+> **Note:** The install scripts handle a compatibility issue where `acids-rave` pins
+> `scipy==1.10.0` (incompatible with Python ≥3.12). The scripts install `acids-rave`
+> and `acids-msprior` with `--no-deps` and provide all transitive dependencies with
+> flexible version ranges via `requirements.txt`.
 
 ### 4. Test with demo model
 

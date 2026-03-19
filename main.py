@@ -21,7 +21,6 @@ from src.preprocess import PreprocessDataset
 from src.train import TrainModel
 from src.export import ExportModel
 from src.generate import UseModel
-from src.stream import StreamAudio
 from src.stream_gui import launch_gui
 from src.workflow import train_workflow
 from src.clean import CleanUserData
@@ -47,16 +46,6 @@ def interactive_menu():
                 return int(raw)
             except ValueError:
                 print("[X] Please enter an integer value.")
-
-    def ask_float(prompt, default):
-        while True:
-            raw = input(prompt).strip()
-            if not raw:
-                return default
-            try:
-                return float(raw)
-            except ValueError:
-                print("[X] Please enter a numeric value.")
 
     def ask_yes_no(prompt, default_yes=True):
         default_label = "Y/n" if default_yes else "y/N"
@@ -181,44 +170,6 @@ def interactive_menu():
             print(f"[X] Failed to open GUI: {e}")
             import traceback
             traceback.print_exc()
-        pause()
-
-    def run_keyboard_stream():
-        print("\n--- Keyboard Streaming ---")
-        mode = model_mode_prompt()
-        if mode == "9":
-            return
-
-        model_path = pick_model_path(default_demo=True)
-        if not model_path:
-            pause()
-            return
-
-        print(f"\nUsing model: {model_path}")
-
-        if mode == "1":
-            StreamAudio(
-                model_path=model_path,
-                sr=44100,
-                chunk_duration=1.0,
-                interactive=True,
-                use_prior=True
-            )
-            pause()
-            return
-
-        sr = ask_int("Sample rate (22050/44100/48000) [44100]: ", 44100)
-        chunk_duration = ask_float("Chunk duration in seconds [1.0]: ", 1.0)
-        interactive = ask_yes_no("Enable real-time controls", default_yes=True)
-        use_prior = ask_yes_no("Use model prior when available", default_yes=True)
-
-        StreamAudio(
-            model_path=model_path,
-            sr=sr,
-            chunk_duration=chunk_duration,
-            interactive=interactive,
-            use_prior=use_prior
-        )
         pause()
 
     def run_full_workflow():
@@ -416,18 +367,15 @@ def interactive_menu():
             print("=" * 60)
             print("  1) Generate audio from model")
             print("  2) Multi-model GUI streaming")
-            print("  3) Keyboard streaming")
             print("  8) Back")
             print("  9) Home")
             print("  0) Exit")
 
-            choice = ask_choice("\nChoose: ", {"1", "2", "3", "8", "9", "0"})
+            choice = ask_choice("\nChoose: ", {"1", "2", "8", "9", "0"})
             if choice == "1":
                 run_generate_audio()
             elif choice == "2":
                 run_gui_stream()
-            elif choice == "3":
-                run_keyboard_stream()
             elif choice == "8":
                 return "BACK"
             elif choice == "9":
@@ -585,14 +533,8 @@ if __name__ == "__main__":
     # Clean command (delete all user data)
     clean_parser = subparsers.add_parser("clean", help="Delete all user data (preprocessed, checkpoints, exports, outputs)")
     
-    # Stream command (real-time audio generation)
-    stream_parser = subparsers.add_parser("stream", help="Generate and stream audio in real-time (Opción C)")
-    stream_parser.add_argument("--model", default="models/demo_model/demo_model.ts", help="Path to .ts model file (default: demo model)")
-    stream_parser.add_argument("--sr", type=int, default=44100, help="Sample rate in Hz (default: 44100)")
-    stream_parser.add_argument("--latent-size", type=int, default=None, help="Latent vector size (default: auto-detect)")
-    stream_parser.add_argument("--chunk-duration", type=float, default=1.0, help="Audio chunk duration in seconds (default: 1.0)")
-    stream_parser.add_argument("--no-interactive", action="store_true", help="Disable real-time parameter controls")
-    stream_parser.add_argument("--no-prior", action="store_true", help="Disable prior (use random noise instead of learned distribution)")
+    # Stream command (GUI only)
+    subparsers.add_parser("stream", help="Launch multi-model GUI streaming")
     
     # Train Prior command (MSPrior integration)
     train_prior_parser = subparsers.add_parser("train_prior", help="Train a prior for a RAVE model using MSPrior")
@@ -653,14 +595,7 @@ if __name__ == "__main__":
         CleanUserData()
     
     elif args.command == "stream":
-        StreamAudio(
-            model_path=args.model,
-            sr=args.sr,
-            latent_size=args.latent_size,
-            chunk_duration=args.chunk_duration,
-            interactive=not args.no_interactive,
-            use_prior=not args.no_prior
-        )
+        launch_gui()
     
     elif args.command == "train_prior":
         TrainPrior(

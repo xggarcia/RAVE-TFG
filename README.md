@@ -1,6 +1,6 @@
 # RAVE-TFG
 
-Real-time audio generation and model training toolkit built around RAVE, with an interactive menu, command-line workflows, keyboard streaming, and multi-model GUI streaming.
+Real-time audio generation and model training toolkit built around RAVE, with an interactive menu, command-line workflows, and multi-model GUI streaming.
 
 This README is the single source of user documentation for this repository.
 
@@ -52,7 +52,7 @@ python main.py
 
 5. First test:
 - Go to Generate & Stream.
-- Choose Multi-model GUI streaming or Keyboard streaming.
+- Choose Multi-model GUI streaming.
 - Use the included demo model first.
 
 ## Why install scripts are recommended
@@ -108,7 +108,6 @@ Menu options:
 - Generate & Stream:
   - Generate audio from model
   - Multi-model GUI streaming
-  - Keyboard streaming
 - Data & Training:
   - Full workflow (preprocess -> train -> export)
   - Preprocess dataset
@@ -207,10 +206,10 @@ Output:
 ## stream
 
 ```bash
-python main.py stream [--model models/demo_model/demo_model.ts] [--sr 44100] [--latent-size <int>] [--chunk-duration 1.0] [--no-interactive] [--no-prior]
+python main.py stream
 ```
 
-This is keyboard streaming (single model) in terminal.
+Launches the multi-model streaming GUI.
 
 ## train_prior
 
@@ -241,7 +240,7 @@ Deletes user-generated data after double confirmation:
 
 ## Real-Time Streaming Guide
 
-There are two real-time streaming experiences.
+Streaming is provided through a GUI experience.
 
 ## Option C: Multi-model GUI streaming
 
@@ -284,30 +283,6 @@ Quick workflow:
 Mixing tip:
 - As you activate more models, reduce per-slot gain to avoid clipping and keep headroom.
 
-## Option D: Keyboard streaming (single model)
-
-How to open:
-- Run python main.py, then select Generate & Stream -> Keyboard streaming
-- Or run python main.py stream
-
-Keyboard controls in interactive mode:
-- Q / A: increase / decrease gain by 0.05
-- W / S: increase / decrease temperature by 0.1
-- E / D: increase / decrease smoothing by 0.05
-- R: reset to defaults
-- Space: print current parameters
-- X or Esc: stop streaming
-
-Parameter ranges:
-- Gain: 0.0 to 1.0
-- Temperature: 0.1 to 3.0
-- Smoothing: 0.0 to 0.95
-
-Defaults:
-- Gain 0.9
-- Temperature 1.0
-- Smoothing 0.0
-
 ## Priors: What is supported and what is not
 
 A prior is an autoregressive model over RAVE latent space that can produce more structured latent trajectories.
@@ -317,11 +292,10 @@ What is supported in this repository:
 - Exporting prior artifacts for downstream use
 
 Important limitations to understand:
-- Real-time Python streaming in this repo uses random latent sampling in stream mode.
-- The stream --no-prior flag exists for API compatibility but does not enable full Python prior generation.
+- Real-time streaming in this repo is focused on GUI-based model playback and mixing.
 - Practical prior-centric generation is typically done with official RAVE/MSPrior tooling and environments such as Max/MSP nn~.
 
-For external users: this means priors are useful and trainable here, but do not expect stream mode to behave as full prior-driven generation.
+For external users: this means priors are useful and trainable here, but do not expect the streaming GUI to behave as full prior-driven generation.
 
 ## Model Configurations
 
@@ -353,10 +327,6 @@ Audio sounds choppy:
 - Lower temperature.
 - Increase smoothing.
 - Reduce number of active GUI slots.
-
-Keyboard controls do not react (Windows):
-- Ensure the terminal window has focus.
-- Controls use native keyboard handling.
 
 Export fails with no checkpoint found:
 - Train long enough to produce checkpoints first.
@@ -390,8 +360,8 @@ The exported models are designed for interoperability with RAVE ecosystems and c
 Q: Do I need to train my own model to test the project?
 A: No. A demo model is included at models/demo_model/demo_model.ts.
 
-Q: Is GUI streaming or keyboard streaming better?
-A: GUI is better for live mixing and multiple models. Keyboard mode is simpler and lighter for single-model experimentation.
+Q: What streaming mode is supported?
+A: Streaming is GUI-only, with multi-model mixing controls.
 
 Q: Can I do everything from CLI without menu?
 A: Yes. All main operations have CLI commands.

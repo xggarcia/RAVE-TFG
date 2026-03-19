@@ -81,6 +81,23 @@ RAVE-TFG/
       exported_model/
   outputs/
   src/
+    cli/
+      commands.py
+      interactive_menu.py
+      menu_helpers.py
+      menu_actions_generate.py
+      menu_actions_training.py
+      menu_actions_maintenance.py
+    streaming_gui/
+      app.py
+      ui.py
+      slots.py
+      model_io.py
+      runtime.py
+    streaming/
+      models.py
+      calibration.py
+      engine.py
 ```
 
 Where to put your files:
@@ -88,6 +105,52 @@ Where to put your files:
 - User checkpoints are created in models/user_model/checkpoints.
 - Exported TorchScript models are created in models/user_model/exported_model.
 - Generated WAV files are written to outputs.
+
+## Architecture Overview
+
+High-level entrypoints:
+- main.py: lightweight startup and routing only.
+- src/cli/commands.py: argparse setup and CLI command dispatch.
+- src/cli/interactive_menu.py: interactive menu coordinator.
+- src/stream_gui.py: compatibility launcher and public import path for GUI startup.
+- src/streaming_gui/app.py: composed GUI controller.
+
+CLI menu organization:
+- src/cli/menu_helpers.py: shared prompts, validation, and reusable menu utilities.
+- src/cli/menu_actions_generate.py: Generate & Stream actions.
+- src/cli/menu_actions_training.py: Data & Training actions.
+- src/cli/menu_actions_maintenance.py: Maintenance actions.
+
+Streaming runtime organization:
+- src/streaming_gui/ui.py: GUI widget composition and slot panel building.
+- src/streaming_gui/slots.py: slot lifecycle and slot UI state interactions.
+- src/streaming_gui/model_io.py: model/audio loading and discovery behavior.
+- src/streaming_gui/runtime.py: logging, calibration flow integration, and stream start/stop orchestration.
+- src/streaming/models.py: model slot state container.
+- src/streaming/calibration.py: quick benchmark and recommendation logic.
+- src/streaming/engine.py: producer/consumer realtime audio engine.
+
+Design goal:
+- Keep files focused by responsibility so contributors can reason about one concern at a time (UI orchestration, command routing, calibration, realtime engine, etc.).
+
+## File Size Policy
+
+To keep the codebase understandable and maintainable:
+- Target size: <= 250 lines per Python file.
+- Hard limit: <= 350 lines per Python file.
+- If a file trends above target, split by responsibility (UI/layout, orchestration, I/O, runtime logic, helpers).
+
+Use the checker:
+
+```bash
+python tools/check_file_lengths.py
+```
+
+Custom thresholds:
+
+```bash
+python tools/check_file_lengths.py --warn 250 --max 350
+```
 
 ## Main Usage Modes
 
@@ -262,8 +325,12 @@ Core capabilities:
 - Global audio settings:
   - Sample rate: 22050, 44100, 48000
   - Chunk duration: 0.5 to 3.0 seconds
+  - Performance mode: Quality, Balanced, Max Stability
+  - Quick calibration: benchmarks decode speed and recommends mode/sample-rate
+  - Auto-calibration before streaming (optional)
 - Live model activation/deactivation while streaming
 - Mixed output from all active slots
+- Runtime metrics in status log (budget, producer/decode/write timing, queue, underruns)
 
 Input mode behavior:
 - Random mode: uses sampled latent noise. Higher intensity and temperature increase variation.
@@ -282,6 +349,17 @@ Quick workflow:
 
 Mixing tip:
 - As you activate more models, reduce per-slot gain to avoid clipping and keep headroom.
+
+Performance mode behavior:
+- Quality: lowest buffering, best per-slot update rate, least tolerant to CPU overload.
+- Balanced: default mode for general use.
+- Max Stability: highest buffering and stronger adaptive load shedding to avoid pause chunks under high model counts.
+
+Quick calibration behavior:
+- Uses loaded models to run a short decode benchmark.
+- Estimates per-slot decode cost versus current chunk time budget.
+- Recommends a performance mode and sample rate.
+- Can apply recommendations automatically before streaming when enabled.
 
 ## Priors: What is supported and what is not
 
@@ -324,9 +402,11 @@ No sound during streaming:
 
 Audio sounds choppy:
 - Increase chunk duration (for example 1.5 or 2.0).
+- Switch to Max Stability performance mode.
 - Lower temperature.
 - Increase smoothing.
-- Reduce number of active GUI slots.
+- Try 22050 Hz for higher model counts on CPU-bound systems.
+- If using Bluetooth output, test a wired output path for better timing stability.
 
 Export fails with no checkpoint found:
 - Train long enough to produce checkpoints first.
@@ -342,6 +422,7 @@ For streaming:
 - Use exported .ts models.
 - Keep chunk duration around 1.0 to 2.0 when CPU is limited.
 - Use lower sample rate if needed for stability.
+- Watch status metrics while streaming: if producer time approaches chunk budget and underruns increase, switch mode or reduce sample rate.
 
 For training:
 - Validate quickly with lower max-steps before long runs.

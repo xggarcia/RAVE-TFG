@@ -64,3 +64,6 @@ models/user_model/**/*.ts
 models/user_model/**/*.pt
 models/user_model/**/*.pth
 models/user_model/**/*.ckpt
+
+# Local development tooling scripts
+tools/

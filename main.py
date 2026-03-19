@@ -29,241 +29,508 @@ from src.train_prior import TrainPrior
 
 
 def interactive_menu():
-    """
-    Interactive menu for easy RAVE workflow navigation.
-    """
-    while True:
-        print("\n" + "=" * 60)
-        print("  RAVE-TFG - Menu Interactivo")
-        print("=" * 60)
-        print("\n[*] Generacion de Audio:")
-        print("  A) Generar audio desde archivo (UseModel)")
-        print("  B) Entrenar modelo completo (Workflow)")
-        print("  C) Streaming con GUI (Interfaz Visual) ** NUEVO **")
-        print("  D) Streaming con Teclado (Controles por teclas)")
-        print("  E) Entrenar Prior para modelo RAVE")
-        print("\n[+] Operaciones Avanzadas:")
-        print("  1) Preprocesar dataset")
-        print("  2) Entrenar modelo")
-        print("  3) Exportar modelo")
-        print("\n[#] Utilidades:")
-        print("  4) Limpiar datos de usuario")
-        print("  0) Salir")
-        print("\n" + "=" * 60)
-        
-        choice = input("\nSelecciona una opcion: ").strip().upper()
-        
-        if choice == "A":
-            print("\n--- Opcion A: Generar Audio desde Archivo ---")
-            model_choice = input("Usar modelo DEMO (1) o PROPIO (2)? [1]: ").strip() or "1"
-            
-            if model_choice == "1":
-                model_path = "models/demo_model/demo_model.ts"
-                audio_path = "input_data/demo_data/audio1.wav"
-            else:
-                model_path = input("Ruta al modelo .ts [models/user_model/exported_model/*.ts]: ").strip()
-                if not model_path:
-                    # Try to find exported model
-                    export_dir = "models/user_model/exported_model"
-                    if os.path.exists(export_dir):
-                        ts_files = [f for f in os.listdir(export_dir) if f.endswith('.ts')]
-                        if ts_files:
-                            model_path = os.path.join(export_dir, ts_files[0])
-                            print(f"Usando: {model_path}")
-                        else:
-                            print("[X] No se encontraron modelos .ts exportados")
-                            continue
-                    else:
-                        print("[X] Directorio de modelos exportados no existe")
-                        continue
-                
-                audio_path = input("Ruta al audio de muestra: ").strip()
-            
-            output_name = input("Nombre de salida [generated]: ").strip() or "generated"
-            duration = input("Duracion en segundos [30]: ").strip()
-            duration = int(duration) if duration else 30
-            
-            UseModel(model_path=model_path, audio_path=audio_path, output_name=output_name, duration=duration)
-            input("\nPresiona Enter para continuar...")
-        
-        elif choice == "B":
-            print("\n--- Opcion B: Workflow Completo de Entrenamiento ---")
-            audio_path = input("Ruta a la carpeta con audios: ").strip()
-            if not audio_path or not os.path.exists(audio_path):
-                print("[X] Ruta invalida")
-                continue
-            
-            model_name = input("Nombre del modelo [my_model]: ").strip() or "my_model"
-            config = input("Configuracion [v2_small/v2/v3]: ").strip() or "v2_small"
-            max_steps = input("Maximo de pasos [6000000]: ").strip()
-            max_steps = int(max_steps) if max_steps else 6000000
-            
+    """Interactive menu for RAVE workflows with category-based navigation."""
+
+    def ask_choice(prompt, valid_choices):
+        while True:
+            choice = input(prompt).strip()
+            if choice in valid_choices:
+                return choice
+            print(f"[X] Invalid choice. Valid options: {', '.join(valid_choices)}")
+
+    def ask_int(prompt, default):
+        while True:
+            raw = input(prompt).strip()
+            if not raw:
+                return default
+            try:
+                return int(raw)
+            except ValueError:
+                print("[X] Please enter an integer value.")
+
+    def ask_float(prompt, default):
+        while True:
+            raw = input(prompt).strip()
+            if not raw:
+                return default
+            try:
+                return float(raw)
+            except ValueError:
+                print("[X] Please enter a numeric value.")
+
+    def ask_yes_no(prompt, default_yes=True):
+        default_label = "Y/n" if default_yes else "y/N"
+        while True:
+            raw = input(f"{prompt} [{default_label}]: ").strip().lower()
+            if not raw:
+                return default_yes
+            if raw in {"y", "yes"}:
+                return True
+            if raw in {"n", "no"}:
+                return False
+            print("[X] Please answer with y or n.")
+
+    def pause():
+        input("\nPress Enter to continue...")
+
+    def model_mode_prompt():
+        print("\nSelect setup mode:")
+        print("  1) Quick (recommended defaults)")
+        print("  2) Advanced (custom parameters)")
+        print("  9) Cancel")
+        return ask_choice("Choose: ", {"1", "2", "9"})
+
+    def find_exported_model():
+        export_dir = "models/user_model/exported_model"
+        if not os.path.exists(export_dir):
+            return None
+        ts_files = [f for f in os.listdir(export_dir) if f.endswith(".ts")]
+        if not ts_files:
+            return None
+        return os.path.join(export_dir, ts_files[0])
+
+    def find_rave_checkpoint():
+        checkpoint_dir = "models/user_model/checkpoints"
+        if not os.path.exists(checkpoint_dir):
+            return None
+        ckpt_files = [f for f in os.listdir(checkpoint_dir) if f.endswith(".ckpt")]
+        if not ckpt_files:
+            return None
+        if "last.ckpt" in ckpt_files:
+            return os.path.join(checkpoint_dir, "last.ckpt")
+        return os.path.join(checkpoint_dir, ckpt_files[0])
+
+    def pick_model_path(default_demo=True):
+        print("\nModel source:")
+        print("  1) Demo model")
+        print("  2) User exported model (.ts)")
+        default = "1" if default_demo else "2"
+        choice = input(f"Choose [default {default}]: ").strip() or default
+        if choice == "1":
+            return "models/demo_model/demo_model.ts"
+
+        custom = input("Model .ts path (leave empty for auto-detect): ").strip()
+        if custom:
+            if os.path.exists(custom):
+                return custom
+            print(f"[X] Model not found: {custom}")
+            return None
+
+        model_path = find_exported_model()
+        if model_path:
+            print(f"[OK] Using detected exported model: {model_path}")
+            return model_path
+
+        print("[X] No exported .ts model found in models/user_model/exported_model")
+        return None
+
+    def run_generate_audio():
+        print("\n--- Generate Audio from Model ---")
+        mode = model_mode_prompt()
+        if mode == "9":
+            return
+
+        if mode == "1":
+            model_path = pick_model_path(default_demo=True)
+            if not model_path:
+                pause()
+                return
+
+            audio_path = "input_data/demo_data/audio1.wav"
+            if model_path != "models/demo_model/demo_model.ts":
+                audio_path = input("Reference audio path (required for user model): ").strip()
+                if not audio_path or not os.path.exists(audio_path):
+                    print("[X] Invalid audio path.")
+                    pause()
+                    return
+
+            output_name = input("Output name [generated]: ").strip() or "generated"
+            UseModel(
+                model_path=model_path,
+                audio_path=audio_path,
+                output_name=output_name,
+                duration=30
+            )
+            pause()
+            return
+
+        model_path = pick_model_path(default_demo=True)
+        if not model_path:
+            pause()
+            return
+
+        default_audio = "input_data/demo_data/audio1.wav" if model_path == "models/demo_model/demo_model.ts" else ""
+        audio_prompt = f"Reference audio path [{default_audio}]: " if default_audio else "Reference audio path: "
+        audio_path = input(audio_prompt).strip() or default_audio
+        if not audio_path or not os.path.exists(audio_path):
+            print("[X] Invalid audio path.")
+            pause()
+            return
+
+        output_name = input("Output name [generated]: ").strip() or "generated"
+        duration = ask_int("Duration in seconds [30]: ", 30)
+        UseModel(model_path=model_path, audio_path=audio_path, output_name=output_name, duration=duration)
+        pause()
+
+    def run_gui_stream():
+        print("\n--- Multi-Model GUI Streaming ---")
+        print("Launching GUI window. Close it when done.\n")
+        try:
+            launch_gui()
+        except Exception as e:
+            print(f"[X] Failed to open GUI: {e}")
+            import traceback
+            traceback.print_exc()
+        pause()
+
+    def run_keyboard_stream():
+        print("\n--- Keyboard Streaming ---")
+        mode = model_mode_prompt()
+        if mode == "9":
+            return
+
+        model_path = pick_model_path(default_demo=True)
+        if not model_path:
+            pause()
+            return
+
+        print(f"\nUsing model: {model_path}")
+
+        if mode == "1":
+            StreamAudio(
+                model_path=model_path,
+                sr=44100,
+                chunk_duration=1.0,
+                interactive=True,
+                use_prior=True
+            )
+            pause()
+            return
+
+        sr = ask_int("Sample rate (22050/44100/48000) [44100]: ", 44100)
+        chunk_duration = ask_float("Chunk duration in seconds [1.0]: ", 1.0)
+        interactive = ask_yes_no("Enable real-time controls", default_yes=True)
+        use_prior = ask_yes_no("Use model prior when available", default_yes=True)
+
+        StreamAudio(
+            model_path=model_path,
+            sr=sr,
+            chunk_duration=chunk_duration,
+            interactive=interactive,
+            use_prior=use_prior
+        )
+        pause()
+
+    def run_full_workflow():
+        print("\n--- Full Training Workflow (preprocess -> train -> export) ---")
+        mode = model_mode_prompt()
+        if mode == "9":
+            return
+
+        audio_path = input("Audio folder path: ").strip()
+        if not audio_path or not os.path.exists(audio_path):
+            print("[X] Invalid audio folder path.")
+            pause()
+            return
+
+        if mode == "1":
             train_workflow(
                 audio_path=audio_path,
-                model_name=model_name,
-                config=config,
-                max_steps=max_steps
+                model_name="my_model",
+                config="v2_small",
+                max_steps=6000000
             )
-            input("\nPresiona Enter para continuar...")
-        
-        elif choice == "C":
-            print("\n--- Opcion C: Streaming con GUI (Interfaz Visual) ---")
-            print("\nAbriendo ventana de streaming...")
-            print("Cierra la ventana cuando termines.\n")
-            
-            try:
-                launch_gui()
-            except Exception as e:
-                print(f"\n[X] Error al abrir GUI: {e}")
-                import traceback
-                traceback.print_exc()
-            
-            input("\nPresiona Enter para continuar...")
-        
-        elif choice == "D":
-            print("\n--- Opcion D: Streaming con Teclado (Controles por teclas) ---")
-            model_choice = input("Usar modelo DEMO (1) o PROPIO (2)? [1]: ").strip() or "1"
-            
-            if model_choice == "1":
-                model_path = "models/demo_model/demo_model.ts"
-            else:
-                # Check for exported .ts file
-                export_dir = "models/user_model/exported_model"
-                if os.path.exists(export_dir):
-                    ts_files = [f for f in os.listdir(export_dir) if f.endswith('.ts')]
-                    if ts_files:
-                        model_path = os.path.join(export_dir, ts_files[0])
-                        print(f"[OK] Modelo .ts encontrado: {model_path}")
-                    else:
-                        print("\n[!] No se encontro archivo .ts exportado.")
-                        print("    Para mejor rendimiento en tiempo real, exporta tu modelo primero.")
-                        
-                        # Check for checkpoint as fallback
-                        checkpoint_dir = "models/user_model/checkpoints"
-                        if os.path.exists(checkpoint_dir):
-                            print(f"    Puedes exportar tu modelo usando la opcion 3 del menu.")
-                        continue
-                else:
-                    print("[X] No existe el directorio de modelos exportados")
-                    continue
-            
-            print(f"\nUsando modelo: {model_path}")
-            
-            # Sample rate input
-            sr_input = input("\nSample rate en Hz (22050/44100/48000) [44100]: ").strip()
-            sr = int(sr_input) if sr_input else 44100
-            
-            chunk_duration = input("Duracion de chunk en segundos [1.0]: ").strip()
-            chunk_duration = float(chunk_duration) if chunk_duration else 1.0
-            
-            interactive_mode = input("Habilitar controles en tiempo real? (s/n) [s]: ").strip().lower()
-            interactive = interactive_mode != 'n'
-            
-            use_prior_mode = input("Usar prior del modelo (si disponible)? (s/n) [s]: ").strip().lower()
-            use_prior = use_prior_mode != 'n'
-            
-            StreamAudio(model_path=model_path, sr=sr, chunk_duration=chunk_duration, interactive=interactive, use_prior=use_prior)
-            input("\nPresiona Enter para continuar...")
-        
-        elif choice == "E":
-            print("\n--- Opcion E: Entrenar Prior para Modelo RAVE ---")
-            print("\n[!] IMPORTANTE: MSPrior requiere el CHECKPOINT original de RAVE (.ckpt)")
-            print("    NO funciona con archivos .ts exportados")
-            print("    Necesitas haber entrenado tu propio modelo RAVE (Opcion B)\n")
-            
-            # Get RAVE checkpoint path
-            rave_checkpoint = input("Ruta al checkpoint RAVE (.ckpt) [auto-buscar]: ").strip()
-            
+            pause()
+            return
+
+        model_name = input("Model name [my_model]: ").strip() or "my_model"
+        config = input("Config [v2_small/v2/v3] [v2_small]: ").strip() or "v2_small"
+        channels = ask_int("Channels [1]: ", 1)
+        val_every = ask_int("Validation every N steps [1000]: ", 1000)
+        max_steps = ask_int("Max steps [6000000]: ", 6000000)
+
+        train_workflow(
+            audio_path=audio_path,
+            model_name=model_name,
+            config=config,
+            channels=channels,
+            val_every=val_every,
+            max_steps=max_steps
+        )
+        pause()
+
+    def run_preprocess():
+        print("\n--- Preprocess Dataset ---")
+        mode = model_mode_prompt()
+        if mode == "9":
+            return
+
+        audio_path = input("Audio folder path: ").strip()
+        if not audio_path or not os.path.exists(audio_path):
+            print("[X] Invalid audio folder path.")
+            pause()
+            return
+
+        if mode == "1":
+            PreprocessDataset(audio_path=audio_path)
+            pause()
+            return
+
+        channels = ask_int("Number of channels [1]: ", 1)
+        lazy = ask_yes_no("Enable lazy loading", default_yes=True)
+        max_db_size = ask_int("Max DB size in GB [10]: ", 10)
+        PreprocessDataset(audio_path=audio_path, channels=channels, lazy=lazy, max_db_size=max_db_size)
+        pause()
+
+    def run_train_model():
+        print("\n--- Train Model ---")
+        mode = model_mode_prompt()
+        if mode == "9":
+            return
+
+        if mode == "1":
+            model_name = input("Model name [my_model]: ").strip() or "my_model"
+            TrainModel(name=model_name, config="v2_small")
+            pause()
+            return
+
+        model_name = input("Model name [my_model]: ").strip() or "my_model"
+        config = input("Config [v2_small/v2/v3] [v2_small]: ").strip() or "v2_small"
+        db_path = input("Preprocessed dataset path [preprocessed_data]: ").strip() or "preprocessed_data"
+        channels = ask_int("Channels [1]: ", 1)
+        val_every = ask_int("Validation every N steps [1000]: ", 1000)
+        save_every = ask_int("Save every N steps [10000]: ", 10000)
+        max_steps = ask_int("Max steps [6000000]: ", 6000000)
+        batch_size = ask_int("Batch size [8]: ", 8)
+
+        TrainModel(
+            name=model_name,
+            config=config,
+            db_path=db_path,
+            channels=channels,
+            val_every=val_every,
+            save_every=save_every,
+            max_steps=max_steps,
+            batch_size=batch_size
+        )
+        pause()
+
+    def run_export_model():
+        print("\n--- Export Model to TorchScript ---")
+        mode = model_mode_prompt()
+        if mode == "9":
+            return
+
+        if mode == "1":
+            ExportModel(run_path=None)
+            pause()
+            return
+
+        run_path = input("Run folder path (leave empty for auto-detect): ").strip() or None
+        ExportModel(run_path=run_path)
+        pause()
+
+    def run_train_prior():
+        print("\n--- Train Prior for RAVE Model ---")
+        print("[!] MSPrior requires a RAVE checkpoint (.ckpt), not an exported .ts file.")
+        mode = model_mode_prompt()
+        if mode == "9":
+            return
+
+        if mode == "1":
+            rave_checkpoint = find_rave_checkpoint()
             if not rave_checkpoint:
-                # Try to find checkpoint automatically
-                checkpoint_dir = "models/user_model/checkpoints"
-                if os.path.exists(checkpoint_dir):
-                    ckpt_files = [f for f in os.listdir(checkpoint_dir) if f.endswith('.ckpt')]
-                    if ckpt_files:
-                        # Prefer last.ckpt
-                        if 'last.ckpt' in ckpt_files:
-                            rave_checkpoint = os.path.join(checkpoint_dir, 'last.ckpt')
-                        else:
-                            rave_checkpoint = os.path.join(checkpoint_dir, ckpt_files[0])
-                        print(f"[OK] Checkpoint encontrado: {rave_checkpoint}")
-                    else:
-                        print("[X] No se encontraron checkpoints en models/user_model/checkpoints")
-                        print("    Primero entrena un modelo RAVE (Opcion B)")
-                        continue
-                else:
-                    print("[X] No existe directorio de checkpoints")
-                    print("    Primero entrena un modelo RAVE (Opcion B)")
-                    continue
-            
-            if not os.path.exists(rave_checkpoint):
-                print(f"[X] Checkpoint no encontrado: {rave_checkpoint}")
-                continue
-            
-            # Get audio dataset path
-            audio_path = input("Ruta al dataset de audio (mismos datos que usaste para entrenar RAVE): ").strip()
+                print("[X] No RAVE checkpoint found in models/user_model/checkpoints")
+                pause()
+                return
+            print(f"[OK] Using checkpoint: {rave_checkpoint}")
+
+            audio_path = input("Audio dataset path: ").strip()
             if not audio_path or not os.path.exists(audio_path):
-                print("[X] Ruta invalida o no existe")
-                continue
-            
-            # Get prior name
-            prior_name = input("Nombre para el prior [my_prior]: ").strip() or "my_prior"
-            
-            # Get configuration
-            print("\nConfiguraciones disponibles:")
-            print("  decoder_only (recomendado): Modelo autoregressivo incondicional")
-            print("  recurrent: Mas ligero, usa GRU en lugar de Transformer")
-            config = input("Configuracion [decoder_only]: ").strip() or "decoder_only"
-            
-            print("\n[!] El entrenamiento puede tardar horas. Presiona Ctrl+C cuando quieras detenerlo.")
-            confirm = input("Continuar? (s/n) [s]: ").strip().lower()
-            if confirm == 'n':
-                continue
-            
+                print("[X] Invalid dataset path.")
+                pause()
+                return
+
+            prior_name = input("Prior name [my_prior]: ").strip() or "my_prior"
+            if not ask_yes_no("Training can take hours. Continue", default_yes=True):
+                return
+
             TrainPrior(
                 rave_model_path=rave_checkpoint,
                 audio_path=audio_path,
                 prior_name=prior_name,
-                config=config
+                config="decoder_only"
             )
-            input("\nPresiona Enter para continuar...")
-        
-        elif choice == "1":
-            print("\n--- Opcion 1: Preprocesar Dataset ---")
-            audio_path = input("Ruta a la carpeta con audios: ").strip()
-            if not audio_path or not os.path.exists(audio_path):
-                print("[X] Ruta invalida")
-                continue
-            
-            PreprocessDataset(audio_path=audio_path)
-            input("\nPresiona Enter para continuar...")
-        
-        elif choice == "2":
-            print("\n--- Opcion 2: Entrenar Modelo ---")
-            model_name = input("Nombre del modelo [my_model]: ").strip() or "my_model"
-            config = input("Configuracion [v2_small/v2/v3]: ").strip() or "v2_small"
-            
-            TrainModel(name=model_name, config=config)
-            input("\nPresiona Enter para continuar...")
-        
-        elif choice == "3":
-            print("\n--- Opcion 3: Exportar Modelo ---")
-            run_path = input("Ruta al run (dejar vacio para auto-detectar): ").strip() or None
-            
-            ExportModel(run_path=run_path)
-            input("\nPresiona Enter para continuar...")
-        
-        elif choice == "4":
-            print("\n--- Opcion 4: Limpiar Datos de Usuario ---")
+            pause()
+            return
+
+        rave_checkpoint = input("RAVE checkpoint path (.ckpt) [auto-detect]: ").strip()
+        if not rave_checkpoint:
+            rave_checkpoint = find_rave_checkpoint()
+
+        if not rave_checkpoint or not os.path.exists(rave_checkpoint):
+            print("[X] Checkpoint not found.")
+            pause()
+            return
+
+        audio_path = input("Audio dataset path: ").strip()
+        if not audio_path or not os.path.exists(audio_path):
+            print("[X] Invalid dataset path.")
+            pause()
+            return
+
+        prior_name = input("Prior name [my_prior]: ").strip() or "my_prior"
+        print("\nAvailable configs: decoder_only, recurrent, encoder_decoder, encoder_decoder_continuous")
+        config = input("Config [decoder_only]: ").strip() or "decoder_only"
+
+        if not ask_yes_no("Training can take hours. Continue", default_yes=True):
+            return
+
+        TrainPrior(
+            rave_model_path=rave_checkpoint,
+            audio_path=audio_path,
+            prior_name=prior_name,
+            config=config
+        )
+        pause()
+
+    def run_clean_user_data():
+        print("\n--- Clean User Data ---")
+        if ask_yes_no("This will remove generated user data. Continue", default_yes=False):
             CleanUserData()
-            input("\nPresiona Enter para continuar...")
-        
+        pause()
+
+    def show_help_about():
+        print("\n--- Help / About ---")
+        print("RAVE-TFG interactive menu:")
+        print("- Generate & Stream: run inference and real-time tools")
+        print("- Data & Training: preprocess, train, export, full workflow, train prior")
+        print("- Maintenance: cleanup and utility information")
+        print("\nTip: Use Quick mode for safe defaults, Advanced mode for full control.")
+        pause()
+
+    def generate_stream_menu():
+        while True:
+            print("\n" + "=" * 60)
+            print("  Generate & Stream")
+            print("=" * 60)
+            print("  1) Generate audio from model")
+            print("  2) Multi-model GUI streaming")
+            print("  3) Keyboard streaming")
+            print("  8) Back")
+            print("  9) Home")
+            print("  0) Exit")
+
+            choice = ask_choice("\nChoose: ", {"1", "2", "3", "8", "9", "0"})
+            if choice == "1":
+                run_generate_audio()
+            elif choice == "2":
+                run_gui_stream()
+            elif choice == "3":
+                run_keyboard_stream()
+            elif choice == "8":
+                return "BACK"
+            elif choice == "9":
+                return "HOME"
+            elif choice == "0":
+                return "EXIT"
+
+    def data_training_steps_menu():
+        while True:
+            print("\n" + "=" * 60)
+            print("  Data & Training - Step-by-Step")
+            print("=" * 60)
+            print("  1) Preprocess dataset")
+            print("  2) Train model")
+            print("  3) Export model")
+            print("  8) Back")
+            print("  9) Home")
+
+            choice = ask_choice("\nChoose: ", {"1", "2", "3", "8", "9"})
+            if choice == "1":
+                run_preprocess()
+            elif choice == "2":
+                run_train_model()
+            elif choice == "3":
+                run_export_model()
+            elif choice == "8":
+                return "BACK"
+            elif choice == "9":
+                return "HOME"
+
+    def data_training_menu():
+        while True:
+            print("\n" + "=" * 60)
+            print("  Data & Training")
+            print("=" * 60)
+            print("  1) Full workflow (recommended)")
+            print("  2) Step-by-step tools")
+            print("  3) Train prior (advanced)")
+            print("  8) Back")
+            print("  9) Home")
+
+            choice = ask_choice("\nChoose: ", {"1", "2", "3", "8", "9"})
+            if choice == "1":
+                run_full_workflow()
+            elif choice == "2":
+                nested = data_training_steps_menu()
+                if nested == "HOME":
+                    return "HOME"
+            elif choice == "3":
+                run_train_prior()
+            elif choice == "8":
+                return "BACK"
+            elif choice == "9":
+                return "HOME"
+
+    def maintenance_menu():
+        while True:
+            print("\n" + "=" * 60)
+            print("  Maintenance")
+            print("=" * 60)
+            print("  1) Clean user data")
+            print("  2) Help / About")
+            print("  8) Back")
+            print("  9) Home")
+
+            choice = ask_choice("\nChoose: ", {"1", "2", "8", "9"})
+            if choice == "1":
+                run_clean_user_data()
+            elif choice == "2":
+                show_help_about()
+            elif choice == "8":
+                return "BACK"
+            elif choice == "9":
+                return "HOME"
+
+    while True:
+        print("\n" + "=" * 60)
+        print("  RAVE-TFG - Main Menu")
+        print("=" * 60)
+        print("  1) Generate & Stream")
+        print("  2) Data & Training")
+        print("  3) Maintenance")
+        print("  0) Exit")
+
+        choice = ask_choice("\nChoose: ", {"1", "2", "3", "0"})
+        if choice == "1":
+            result = generate_stream_menu()
+            if result == "EXIT":
+                print("\nGoodbye!")
+                break
+        elif choice == "2":
+            result = data_training_menu()
+            if result == "EXIT":
+                print("\nGoodbye!")
+                break
+        elif choice == "3":
+            result = maintenance_menu()
+            if result == "EXIT":
+                print("\nGoodbye!")
+                break
         elif choice == "0":
-            print("\nHasta luego!")
+            print("\nGoodbye!")
             break
-        
-        else:
-            print("\n[X] Opcion invalida. Por favor, selecciona una opcion valida.")
-            input("Presiona Enter para continuar...")
 
 
 if __name__ == "__main__":

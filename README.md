@@ -1,666 +1,403 @@
 # RAVE-TFG
 
-Real-time Audio Variational autoEncoder wrapper for easy training, inference, and **live streaming** with interactive controls.
+Real-time audio generation and model training toolkit built around RAVE, with an interactive menu, command-line workflows, keyboard streaming, and multi-model GUI streaming.
 
-## Features
+This README is the single source of user documentation for this repository.
 
-- 🎵 **Interactive Menu**: Easy-to-use interface for all operations
-- 🖥️ **Dynamic Multi-Model Streaming**: Load unlimited models with add/delete slot management
-- 🎛️ **Independent Parameters**: Each model has its own gain, temperature, and smoothing
-- 🔀 **Real-Time Audio Mixing**: Blend multiple models together or toggle individually
-- 🎨 **Dual Input Modes**: Random generation OR audio file transformation per slot
-- 🔁 **Audio Looping**: Use audio files as input with optional looping
-- 🎚️ **Random Intensity Control**: Adjust noise characteristics for generative mode
-- 🎮 **Live Controls**: Modify parameters and activate/deactivate models during playback
-- ➕ **Dynamic Slots**: Add or remove model slots on the fly (starts with 1 slot)
-- 🚀 **Complete Pipeline**: Preprocess, train, export, and generate in one workflow
-- 🧹 **Safe Data Management**: Clean user data with double confirmation
-- 💻 **Cross-Platform**: Works on Windows, Linux, and macOS
+## Quick Start (5 minutes)
 
-## Project Structure
-
-```
-RAVE-TFG/
-├── main.py              # Main CLI and functions
-├── requirements.txt     # Python dependencies
-├── configs/             # Configuration files
-├── input_data/          # Audio datasets
-│   ├── demo_data/       # Demo audio files
-│   └── user_data/       # Place your own audio here
-├── preprocessed_data/   # Preprocessed datasets (generated)
-├── models/
-│   ├── demo_model/      # Pre-trained demo models
-│   └── user_model/      # User trained models
-│       ├── checkpoints/ # Training checkpoints
-│       └── exported_model/ # Exported models (.ts files)
-└── outputs/             # Generated audio files
-```
-
-
-## Setup
-
-### 1. Clone the repository
+1. Clone and enter the repository:
 
 ```bash
 git clone https://github.com/xggarcia/RAVE-TFG
 cd RAVE-TFG
 ```
 
-### 2. Create and activate virtual environment
+2. Create and activate a virtual environment:
 
-**Windows:**
+Windows:
+
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
 ```
 
-**Linux/macOS:**
+Linux/macOS:
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Install dependencies
+3. Install dependencies:
 
-**Windows:**
+Windows:
+
 ```bash
 install\install.bat
 ```
 
-**Linux/macOS:**
+Linux/macOS:
+
 ```bash
 chmod +x install/install.sh
 ./install/install.sh
 ```
 
-> **Note:** The install scripts handle a compatibility issue where `acids-rave` pins
-> `scipy==1.10.0` (incompatible with Python ≥3.12). The scripts install `acids-rave`
-> and `acids-msprior` with `--no-deps` and provide all transitive dependencies with
-> flexible version ranges via `requirements.txt`.
-
-### 4. Test with demo model
-
-```bash
-# Launch interactive menu
-python main.py
-
-# Or test streaming directly
-python main.py stream
-```
-
----
-
-## CLI Commands Reference
-
-## Usage
-
-### Interactive Menu (Recommended)
-
-Simply run the script without arguments to launch the interactive menu:
+4. Launch the interactive menu:
 
 ```bash
 python main.py
 ```
 
-**Menu Options:**
+5. First test:
+- Go to Generate & Stream.
+- Choose Multi-model GUI streaming or Keyboard streaming.
+- Use the included demo model first.
 
+## Why install scripts are recommended
+
+The install scripts handle version compatibility around acids-rave and scipy. They install core packages in a way that avoids common Python 3.12 dependency conflicts.
+
+## Project Structure
+
+```text
+RAVE-TFG/
+  main.py
+  requirements.txt
+  install/
+    install.bat
+    install.sh
+    patch_rave.py
+  input_data/
+    demo_data/
+    user_data/
+  preprocessed_data/
+  models/
+    demo_model/
+      demo_model.ts
+    user_model/
+      checkpoints/
+      exported_model/
+  outputs/
+  src/
 ```
-============================================================
-  RAVE-TFG - Menu Interactivo
-============================================================
 
-[*] Generacion de Audio:
-  A) Generar audio desde archivo (UseModel)
-  B) Entrenar modelo completo (Workflow)
-  C) Streaming con GUI (Multi-Model Interface) ** UPDATED **
-  D) Streaming con Teclado (Controles por teclas)
-  E) Entrenar Prior para modelo RAVE
+Where to put your files:
+- Put your training audio in input_data/user_data.
+- User checkpoints are created in models/user_model/checkpoints.
+- Exported TorchScript models are created in models/user_model/exported_model.
+- Generated WAV files are written to outputs.
 
-[+] Operaciones Avanzadas:
-  1) Preprocesar dataset
-  2) Entrenar modelo
-  3) Exportar modelo
+## Main Usage Modes
 
-[#] Utilidades:
-  4) Limpiar datos de usuario
-  0) Salir
+## 1) Interactive Menu (recommended)
+
+Run:
+
+```bash
+python main.py
 ```
 
-The menu guides you through each step with prompts and default values.
+Menu options:
+- Main menu:
+  - 1) Generate & Stream
+  - 2) Data & Training
+  - 3) Maintenance
+  - 0) Exit
+- Generate & Stream:
+  - Generate audio from model
+  - Multi-model GUI streaming
+  - Keyboard streaming
+- Data & Training:
+  - Full workflow (preprocess -> train -> export)
+  - Preprocess dataset
+  - Train model
+  - Export model
+  - Train prior (advanced)
+- Maintenance:
+  - Clean user data
+  - Help / About
 
----
+Navigation and setup behavior:
+- Numeric choices only.
+- Submenus include Back, Home, and Exit.
+- Invalid input retries in place until valid.
+- Most operations offer Quick mode (safe defaults) and Advanced mode (full parameter control).
 
-### Command Line Interface
+This is the easiest path for external users because each option prompts for required inputs.
 
-For advanced users and automation, all features are available via CLI:
+## 2) Command-line interface
+
+Run commands as:
 
 ```bash
 python main.py <command> [options]
 ```
 
-#### Available Commands
+Available commands:
+- preprocess
+- train
+- export
+- workflow
+- generate
+- stream
+- train_prior
+- clean
 
-| Command | Description |
-|---------|-------------|
-| `preprocess` | Preprocess audio dataset |
-| `train` | Train a RAVE model |
-| `export` | Export trained model to TorchScript |
-| `workflow` | Run complete pipeline (preprocess → train → export) |
-| `generate` | Generate audio using a trained model |
-| `stream` | **NEW** Real-time audio streaming with live controls |
-| `clean` | Delete all user data (with double confirmation) |
+## Commands Reference
 
----
-
-## 🎛️ Real-Time Streaming
-
-### Two Streaming Modes
-
-**Option C: Multi-Model GUI Streaming** - Recommended for creative sound design
-- **Load up to 4 models simultaneously**
-- **Independent parameters** for each model (gain, temperature, smoothing)
-- **Activate/deactivate** models individually in real-time
-- **Automatic audio mixing** when multiple models are active
-- Visual sliders and color-coded slots
-- Model discovery and selection dropdowns
-- Real-time status monitoring
-
-**Option D: Keyboard Streaming (Single Model)** - Best for focused experimentation
-- Runs in terminal with keyboard shortcuts
-- Faster startup, lower resource usage
-- Keyboard controls for parameters
-- Preferred for live performances
-
-### 🖥️ Multi-Model GUI Streaming (Option C)
-
-**Features:**
-- 🎛️ **4 Independent Model Slots**: Load different models in each slot
-- 🎨 **Color-Coded Interface**: Blue, Red, Orange, Purple slots for easy identification
-- 📊 **Individual Parameter Sliders**: Gain, Temperature, Smoothing for each model
-- 🎲 **Input Source Selection**: Random generation OR audio file per slot
-- 🔁 **Audio File Support**: Load .wav/.mp3/.flac files with optional looping
-- 🎚️ **Random Intensity**: Control noise characteristics in random mode
-- ✓ **Activation Checkboxes**: Toggle models on/off during streaming
-- 🔀 **Real-Time Mixing**: Blend multiple models or use solo
-- 📁 **Model Discovery**: Auto-finds .ts files in your models folder
-- 📝 **Status Log**: Monitor loading and streaming activity
-
-**How to Use:**
+## preprocess
 
 ```bash
-python main.py
-# Select Option C
-# A window will open with 4 model slots
+python main.py preprocess <audio_path> [--channels 1] [--no-lazy] [--max-db-size 10]
 ```
 
-**Multi-Model Workflow:**
-1. **Load Models**: For each slot:
-   - Select model from dropdown OR click "Browse..."
-   - Click "Load" button
-   - Wait for "Loaded (Inactive)" status
+Arguments:
+- audio_path (required): folder containing audio files
+- --channels: 1 or 2 (default 1)
+- --no-lazy: disable lazy loading
+- --max-db-size: max LMDB size in GB (default 10)
 
-2. **Configure Parameters**: Adjust sliders for each model:
-   - **Gain** (0.0-1.0): Volume in the mix (lower for multiple models)
-   - **Temperature** (0.1-3.0): Sound variation/chaos
-   - **Smoothing** (0.0-0.95): Transition smoothness
+Output:
+- preprocessed_data/
 
-3. **Choose Input Source**: For each slot:
-   - **Random**: Generate from noise (adjust Intensity slider)
-   - **Audio File**: Click "Select Audio", choose file, check "Loop" if desired
-
-4. **Activate Models**: Check "ACTIVE" for models you want to hear
-
-5. **Start Streaming**: Click "START STREAMING"
-
-6. **Live Mixing**: While streaming:
-   - Toggle models on/off with checkboxes
-   - Adjust sliders to change parameters
-   - Changes apply immediately
-
-7. **Stop**: Click "STOP STREAMING" when done
-
-**Example Multi-Model Setup:**
-```
-Slot 1: Drums model    (Random, Intensity: 1.2, Gain: 0.5, Active: ✓)
-Slot 2: Melody model   (Audio: melody.wav, Loop: ON, Gain: 0.4, Active: ✓)
-Slot 3: Ambient model  (Random, Intensity: 0.8, Gain: 0.3, Active: ✓)
-Slot 4: (Empty)
-
-→ Result: Generative drums + looping melody + ambient textures
-```
-
-**📖 Documentation:**
-- [Multi-Model Guide](docs/MULTI_MODEL_GUIDE.md) - Advanced techniques and mixing tips
-- [Input Source Guide](docs/INPUT_SOURCE_GUIDE.md) - Random vs Audio modes, intensity control
-- [Quick Reference](docs/MULTI_MODEL_QUICKREF.md) - Visual layout and quick actions
-
-### 🎮 Keyboard Streaming (Option D)
-
-**Quick Start:**
-
-**From Interactive Menu:**
-```bash
-python main.py
-# Select option D (not C)
-# Choose DEMO (1) or your own model (2)
-# Press Enter to use defaults
-```
-
-**From Command Line:**
-```bash
-# Use demo model with default settings
-python main.py stream
-
-# Use custom model
-python main.py stream --model models/user_model/exported_model/my_model.ts
-
-# Disable interactive controls
-python main.py stream --no-interactive
-```
-
-### 🎮 Live Parameter Controls
-
-When streaming starts, you can modify the sound in real-time using keyboard controls:
-
-#### Volume / Gain
-- **Q**: Increase volume (+5%)
-- **A**: Decrease volume (-5%)
-- Range: 0.0 (silent) to 1.0 (max)
-
-#### Temperature (Sound Variation)
-- **W**: More variation (+0.1)
-- **S**: Less variation (-0.1)
-- Range: 0.1 to 3.0
-  - **Low (0.1-0.5)**: Soft, predictable sounds
-  - **Medium (0.8-1.2)**: Balanced variety
-  - **High (1.5-3.0)**: Chaotic, experimental sounds
-
-#### Smoothing (Interpolation)
-- **E**: More smoothing (+5%)
-- **D**: Less smoothing (-5%)
-- Range: 0.0 to 0.95
-  - **0.0**: No smoothing (can sound choppy)
-  - **0.5**: 50% blend (smooth transitions)
-  - **0.9**: Very gradual changes (fluid evolution)
-
-#### Other Controls
-- **R**: Reset to default values (Gain: 0.9, Temp: 1.0, Smooth: 0.0)
-- **SPACE**: Show current parameters
-- **X** or **ESC**: Exit streaming
-
-### Stream Command Options
+## train
 
 ```bash
-python main.py stream [options]
+python main.py train [--name my_model] [--config v2_small] [--db-path preprocessed_data] [--channels 1] [--val-every 1000] [--save-every 10000] [--max-steps 6000000] [--batch-size 8]
 ```
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--model` | demo_model.ts | Path to .ts model file |
-| `--sr` | 44100 | Sample rate in Hz |
-| `--latent-size` | Auto-detect | Latent vector size |
-| `--chunk-duration` | 1.0 | Audio chunk duration in seconds |
-| `--no-interactive` | False | Disable real-time controls |
+Output:
+- models/user_model/checkpoints/<name>/...
 
-### Creative Examples
-
-**Soft Ambient Soundscape:**
-```
-1. Start streaming
-2. Press 'S' multiple times (Temperature ~0.3)
-3. Press 'E' multiple times (Smoothing ~0.8)
-4. Adjust volume with Q/A
-```
-
-**Glitch/Experimental:**
-```
-1. Start streaming
-2. Press 'W' multiple times (Temperature ~2.5)
-3. Keep Smoothing low
-4. Moderate volume
-```
-
-**Gradual Evolution:**
-```
-1. Start with defaults
-2. Press 'E' until Smoothing ~0.9
-3. Gradually increase Temperature with 'W'
-4. Observe slow sound evolution
-```
-
-### Requirements for Streaming
-
-**Model Format:** Streaming requires a `.ts` (TorchScript) file for optimal real-time performance.
-
-- **Demo model**: Already included, ready to use
-- **Your own model**: Export first using Option 3 or:
-  ```bash
-  python main.py export
-  ```
-
-If `.ts` file is missing, you'll see:
-```
-[!] Aviso: Para mejor rendimiento en tiempo real, usa la opcion 'Exportar' primero.
-    No se encontro el archivo .ts optimizado.
-```
-
----
-
-### Command Line Interface
-
-### Preprocess Audio Dataset
-
-Prepare your audio files for training.
+## export
 
 ```bash
-python main.py preprocess <audio_path> [options]
+python main.py export [--run-path models/user_model/checkpoints/<model>/version_<n>]
 ```
 
-**Options:**
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--channels` | 1 | Number of audio channels (1=mono, 2=stereo) |
-| `--no-lazy` | False | Disable lazy loading (pre-processes all audio) |
-| `--max-db-size` | 10 | Maximum database size in GB |
+Behavior:
+- If run-path is omitted, latest run is auto-detected.
 
-**Example:**
-```bash
-python main.py preprocess input_data/my_audio --channels 1
-```
+Output:
+- models/user_model/exported_model/<name>.ts
 
----
-
-### Train a Model
-
-Train a RAVE model on your preprocessed dataset.
+## workflow
 
 ```bash
-python main.py train [options]
+python main.py workflow <audio_path> [--name my_model] [--config v2_small] [--channels 1] [--val-every 1000] [--max-steps 6000000]
 ```
 
-**Options:**
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--name` | my_model | Name for your model |
-| `--config` | v2_small | Architecture (see table below) |
-| `--db-path` | preprocessed_data | Path to preprocessed dataset |
-| `--channels` | 1 | Audio channels |
-| `--val-every` | 1000 | Checkpoint every N steps |
-| `--save-every` | 10000 | Save model every N steps |
-| `--max-steps` | 6000000 | Maximum training steps |
-| `--batch-size` | 8 | Batch size |
+Runs preprocess, train, and export in one sequence.
 
-**Architecture Configurations:**
-
-| Config | Description | Min GPU Memory |
-|--------|-------------|----------------|
-| `v1` | Original continuous model | 8 GB |
-| `v2` | Improved continuous model (faster, higher quality) | 16 GB |
-| `v2_small` | Smaller v2, good for timbre transfer | 8 GB |
-| `v3` | v2 with style transfer capabilities | 32 GB |
-| `discrete` | Similar to SoundStream/EnCodec | 18 GB |
-| `onnx` | Noiseless v1 for ONNX export | 6 GB |
-| `raspberry` | Lightweight for Raspberry Pi 4 | 5 GB |
-
-**Example:**
-```bash
-python main.py train --name my_guitar_model --config v2_small --val-every 500
-```
-
----
-
-### Export Model
-
-Export a trained model to TorchScript format for use in Max/MSP, PureData, etc.
+## generate
 
 ```bash
-python main.py export [options]
+python main.py generate [--model models/demo_model/demo_model.ts] [--audio input_data/demo_data/audio1.wav] [--output generated] [--no-random]
 ```
 
-**Options:**
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--run-path` | Auto-detect | Path to training run folder |
+Notes:
+- Random mode generates new audio using sampled latent vectors.
+- Non-random mode reconstructs from input audio latents.
 
+Output:
+- outputs/<output>.wav
 
-
-**Example:**
-```bash
-python main.py export
-python main.py export --run-path models/user_model/checkpoints/my_model/version_0
-```
-
----
-
-### Complete Workflow
-
-Run the entire pipeline in one command: preprocess → train → export.
+## stream
 
 ```bash
-python main.py workflow <audio_path> [options]
+python main.py stream [--model models/demo_model/demo_model.ts] [--sr 44100] [--latent-size <int>] [--chunk-duration 1.0] [--no-interactive] [--no-prior]
 ```
 
-**Options:**
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--name` | my_model | Model name |
-| `--config` | v2_small | Architecture config |
-| `--channels` | 1 | Audio channels |
-| `--val-every` | 1000 | Checkpoint frequency |
-| `--max-steps` | 6000000 | Max training steps |
+This is keyboard streaming (single model) in terminal.
 
-**Example:**
-```bash
-python main.py workflow input_data/my_audio --name my_model --config v2_small
-```
-
----
-
-### Generate Audio
-
-Generate new audio using a trained RAVE model. When using random mode, generates 30 seconds of audio by default.
+## train_prior
 
 ```bash
-python main.py generate [options]
+python main.py train_prior --rave <checkpoint.ckpt> --audio <audio_folder> [--name my_prior] [--config decoder_only] [--output models/user_model/prior]
 ```
 
-**Options:**
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--model` | models/demo_model/demo_model.ts | Path to model file |
-| `--audio` | input_data/demo_data/audio1.wav | Path to sample audio file (used to determine latent dimensions) |
-| `--output` | generated | Output filename (without extension) |
-| `--no-random` | False | Use input audio's latent instead of random |
+Important:
+- MSPrior requires checkpoint files (.ckpt). Exported .ts files are not the native training input for MSPrior.
+- If you pass a .ts file, the script attempts to locate its original checkpoint.
 
-**Example:**
-```bash
-# Generate 30s of random audio (uses demo model and demo audio by default)
-python main.py generate
+Outputs:
+- models/user_model/prior/preprocessed_latents/
+- models/user_model/prior/training/<name>/
+- exported prior .ts in the training run folder
 
-# Generate random audio with custom model
-python main.py generate --model models/user_model/exported_model/my_model.ts --audio input.wav --output my_output
-
-# Reconstruct input audio through the model (keeps original length)
-python main.py generate --model models/user_model/exported_model/my_model.ts --audio input.wav --no-random
-```
-
----
-
-### Clean User Data
-
-Delete all user-generated data (preprocessed datasets, checkpoints, exported models, and outputs). This command requires **double confirmation** for safety.
+## clean
 
 ```bash
 python main.py clean
 ```
 
-**What gets deleted:**
-- `preprocessed_data/` - Preprocessed datasets
-- `models/user_model/checkpoints/` - Training checkpoints
-- `models/user_model/exported_model/` - Exported .ts models
-- `outputs/` - Generated audio files
+Deletes user-generated data after double confirmation:
+- preprocessed_data/
+- models/user_model/checkpoints/
+- models/user_model/exported_model/
+- outputs/
 
-**Example:**
-```bash
-python main.py clean
-```
+## Real-Time Streaming Guide
 
-**Confirmation process:**
-1. First prompt: Type `yes` to confirm
-2. Second prompt: Type `DELETE ALL USER DATA` exactly
+There are two real-time streaming experiences.
 
----
+## Option C: Multi-model GUI streaming
 
+How to open:
+- Run python main.py
+- Select Generate & Stream
+- Select Multi-model GUI streaming
 
-## Training Tips
+Core capabilities:
+- Dynamic model slots (starts with 1, you can add/remove slots)
+- One model per slot
+- Per-slot controls:
+  - Gain: 0.0 to 1.0
+  - Temperature: 0.1 to 3.0
+  - Smoothing: 0.0 to 0.95
+- Per-slot input source:
+  - Random mode with intensity control
+  - Audio file mode with optional looping
+- Global audio settings:
+  - Sample rate: 22050, 44100, 48000
+  - Chunk duration: 0.5 to 3.0 seconds
+- Live model activation/deactivation while streaming
+- Mixed output from all active slots
 
-### Recommended Settings for Quick Testing
+Input mode behavior:
+- Random mode: uses sampled latent noise. Higher intensity and temperature increase variation.
+- Audio mode: encodes selected audio and re-synthesizes via model latent space; loop keeps playback continuous.
 
-```bash
-python main.py train --name test_model --config v2_small --val-every 50 --max-steps 1000
-```
+Typical supported audio file formats for input mode:
+- wav, mp3, flac, ogg
 
-### Resume Training
+Quick workflow:
+1. Add one or more slots.
+2. Load model files (.ts) for each slot.
+3. Configure source mode and parameters per slot.
+4. Activate desired slots.
+5. Start streaming.
+6. Adjust controls live.
 
-Training automatically resumes from the latest checkpoint if one exists.
+Mixing tip:
+- As you activate more models, reduce per-slot gain to avoid clipping and keep headroom.
 
-### Monitor Training
+## Option D: Keyboard streaming (single model)
 
-Training progress is logged to TensorBoard. View with:
+How to open:
+- Run python main.py, then select Generate & Stream -> Keyboard streaming
+- Or run python main.py stream
+
+Keyboard controls in interactive mode:
+- Q / A: increase / decrease gain by 0.05
+- W / S: increase / decrease temperature by 0.1
+- E / D: increase / decrease smoothing by 0.05
+- R: reset to defaults
+- Space: print current parameters
+- X or Esc: stop streaming
+
+Parameter ranges:
+- Gain: 0.0 to 1.0
+- Temperature: 0.1 to 3.0
+- Smoothing: 0.0 to 0.95
+
+Defaults:
+- Gain 0.9
+- Temperature 1.0
+- Smoothing 0.0
+
+## Priors: What is supported and what is not
+
+A prior is an autoregressive model over RAVE latent space that can produce more structured latent trajectories.
+
+What is supported in this repository:
+- Training priors using train_prior (MSPrior workflow)
+- Exporting prior artifacts for downstream use
+
+Important limitations to understand:
+- Real-time Python streaming in this repo uses random latent sampling in stream mode.
+- The stream --no-prior flag exists for API compatibility but does not enable full Python prior generation.
+- Practical prior-centric generation is typically done with official RAVE/MSPrior tooling and environments such as Max/MSP nn~.
+
+For external users: this means priors are useful and trainable here, but do not expect stream mode to behave as full prior-driven generation.
+
+## Model Configurations
+
+Common architecture options for training:
+
+| Config | Typical use | Approx minimum GPU memory |
+|---|---|---|
+| v1 | legacy continuous model | 8 GB |
+| v2 | improved continuous quality | 16 GB |
+| v2_small | lighter and practical default | 8 GB |
+| v3 | style-transfer oriented variant | 32 GB |
+| discrete | SoundStream/EnCodec-like discrete mode | 18 GB |
+| onnx | noiseless v1 intended for ONNX export | 6 GB |
+| raspberry | lightweight profile | 5 GB |
+
+Recommendation:
+- Start with v2_small for first experiments.
+- Move to v2 after validating your full pipeline.
+
+## Troubleshooting
+
+No sound during streaming:
+- Check OS output device and system volume.
+- Confirm model path exists and points to a valid .ts file.
+- Increase gain.
+
+Audio sounds choppy:
+- Increase chunk duration (for example 1.5 or 2.0).
+- Lower temperature.
+- Increase smoothing.
+- Reduce number of active GUI slots.
+
+Keyboard controls do not react (Windows):
+- Ensure the terminal window has focus.
+- Controls use native keyboard handling.
+
+Export fails with no checkpoint found:
+- Train long enough to produce checkpoints first.
+- Verify run-path points to a valid training run directory.
+
+Preprocess fails due disk/memory pressure:
+- Lower --max-db-size.
+- Use a smaller dataset slice to validate pipeline first.
+
+## Performance Tips
+
+For streaming:
+- Use exported .ts models.
+- Keep chunk duration around 1.0 to 2.0 when CPU is limited.
+- Use lower sample rate if needed for stability.
+
+For training:
+- Validate quickly with lower max-steps before long runs.
+- Use TensorBoard:
 
 ```bash
 tensorboard --logdir models/user_model/checkpoints
 ```
 
----
+## External Integrations
 
----
+The exported models are designed for interoperability with RAVE ecosystems and can be used in external environments such as Max/MSP or PureData depending on the workflow.
 
-## Troubleshooting
+## FAQ
 
-### Streaming Issues
+Q: Do I need to train my own model to test the project?
+A: No. A demo model is included at models/demo_model/demo_model.ts.
 
-**No audio output:**
-- Check system volume and audio device settings
-- Verify the `.ts` model file exists
-- Try increasing gain with 'Q' key
+Q: Is GUI streaming or keyboard streaming better?
+A: GUI is better for live mixing and multiple models. Keyboard mode is simpler and lighter for single-model experimentation.
 
-**Audio is choppy/glitchy:**
-- Increase `--chunk-duration` to 1.5 or 2.0
-- Reduce Temperature (press 'S')
-- Increase Smoothing (press 'E')
+Q: Can I do everything from CLI without menu?
+A: Yes. All main operations have CLI commands.
 
-**Controls not responding:**
-- Make sure terminal window has focus
-- On Windows, controls use `msvcrt` (native keyboard input)
-
-**Unicode/Encoding errors on Windows:**
-- The script automatically configures UTF-8 encoding
-- If issues persist, run: `chcp 65001` before running Python
-
-### Training Issues
-
-**"Insufficient disk space" error on Windows**
-
-RAVE's LMDB database pre-allocates space. Reduce `--max-db-size`:
-
-```bash
-python main.py preprocess input_data/my_audio --max-db-size 5
-```
-
-**"No checkpoint found" when exporting**
-
-You need to train the model first and let it run until at least one checkpoint is saved (every `--val-every` steps).
-
-**Clicking artifacts in Max/MSP**
-
-Make sure to export with streaming mode (default). If you used `--no-streaming`, re-export:
-
-```bash
-python main.py export
-```
-
----
-
-## Training Priors with MSPrior
-
-### What is a Prior?
-
-A **prior** is an autoregressive model that learns temporal patterns in RAVE's latent space. It can generate more coherent and musically structured sequences than random sampling.
-
-### When to Use Priors
-
-- You want more structured, less random generation
-- You're using the model in Max/MSP or PureData
-- You want generation that closely follows training data patterns
-
-### Training a Prior (Option D)
-
-**Requirements:**
-- A trained and exported RAVE model (.ts file)
-- The **original audio dataset** used to train the RAVE model
-- MSPrior installed (`pip install acids-msprior`)
-
-**Interactive Menu:**
-
-```bash
-python main.py
-# Select Option D: Entrenar Prior para modelo RAVE
-```
-
-**Command Line:**
-
-```bash
-python main.py train_prior \
-  --rave models/user_model/exported_model/my_model.ts \
-  --audio input_data/user_data \
-  --name my_prior \
-  --config decoder_only
-```
-
-**Steps:**
-1. **Preprocess**: Encodes audio to latent representations using RAVE
-2. **Train**: Trains autoregressive prior on latent sequences
-3. **Export**: Exports prior as `.ts` file for use in Max/MSP
-
-**Configurations:**
-- `decoder_only` (recommended): Transformer-based autoregressive model
-- `recurrent`: Lighter GRU-based model for limited compute
-
-**Using the Trained Prior:**
-
-The prior can be used in Max/MSP with nn~:
-
-```
-[nn~ rave_model.ts]  [nn~ prior.ts]
-       |                    |
-   [encode]          [generate latents]
-       |                    |
-       +----------+---------+
-                  |
-              [decode]
-                  |
-              [audio out]
-```
-
-**Note:** Priors in exported .ts files are designed for Max/MSP/PureData, not direct Python usage. For Python streaming, the random latent sampling (default in Option C) produces excellent quality.
-
----
-
-## Performance Tips
-
-### For Real-Time Streaming
-- Use exported `.ts` files (not `.ckpt` checkpoints)
-- Start with `chunk_duration=1.0` (default)
-- If CPU is struggling, increase chunk duration to reduce overhead
-- Lower `sr` to 22050 if needed for faster processing
-
-### For Training
-- Use `v2_small` config for faster training on limited GPU memory
-- Start with `--max-steps 10000` to test before long training
-- Monitor with TensorBoard: `tensorboard --logdir models/user_model/checkpoints`
-
----
+Q: Are priors mandatory for good output quality?
+A: No. Random latent sampling with a well-trained model can already produce high-quality results.
 
 ## License
 
@@ -668,5 +405,5 @@ TBD
 
 ## Acknowledgments
 
-- [ACIDS-IRCAM/RAVE](https://github.com/acids-ircam/RAVE) - Original RAVE implementation
-- Real-time streaming and interactive controls implementation by RAVE-TFG team
+- ACIDS-IRCAM/RAVE
+- Contributors and maintainers of this repository

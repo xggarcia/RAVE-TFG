@@ -436,19 +436,6 @@ tensorboard --logdir models/user_model/checkpoints
 
 The exported models are designed for interoperability with RAVE ecosystems and can be used in external environments such as Max/MSP or PureData depending on the workflow.
 
-## FAQ
-
-Q: Do I need to train my own model to test the project?
-A: No. A demo model is included at models/demo_model/demo_model.ts.
-
-Q: What streaming mode is supported?
-A: Streaming is GUI-only, with multi-model mixing controls.
-
-Q: Can I do everything from CLI without menu?
-A: Yes. All main operations have CLI commands.
-
-Q: Are priors mandatory for good output quality?
-A: No. Random latent sampling with a well-trained model can already produce high-quality results.
 
 ## License
 

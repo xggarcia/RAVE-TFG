@@ -3,6 +3,7 @@
 
 import sys
 import tkinter as tk
+import customtkinter as ctk
 
 
 def launch_gui():
@@ -18,7 +19,7 @@ def launch_gui():
         if hasattr(sys.stderr, "reconfigure"):
             sys.stderr.reconfigure(encoding="utf-8")
 
-    root = tk.Tk()
+    root = ctk.CTk()
     app = RAVEStreamGUI(root)
     root.mainloop()
 

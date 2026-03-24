@@ -1,185 +1,320 @@
 import tkinter as tk
-from tkinter import ttk
+import customtkinter as ctk
 
 
 class StreamGUILayoutMixin:
     def create_widgets(self):
-        """Create all GUI widgets."""
-        title_frame = tk.Frame(self.root, bg="#2c3e50", height=60)
-        title_frame.pack(fill=tk.X)
-        title_frame.pack_propagate(False)
+        """Create all GUI widgets using a mixing-desk inspired dark layout."""
+        # Theme tokens inspired by tools/web.html reference.
+        bg_root = "#161a20"
+        desk_bg = "#323741"
+        panel_bg = "#2b3038"
+        panel_border = "#111111"
+        text_main = "#d3dae3"
+        text_muted = "#9da8b5"
+        text_bright = "#d9dee5"
+        accent_green = "#4caf50"
+        accent_red = "#d32f2f"
+        accent_orange = "#d97736"
 
-        title_label = tk.Label(
-            title_frame,
+        self.root.configure(fg_color=bg_root)
+
+        desk = ctk.CTkFrame(
+            self.root,
+            fg_color=desk_bg,
+            border_width=1,
+            border_color=panel_border,
+            corner_radius=16,
+        )
+        desk.pack(fill=tk.BOTH, expand=True, padx=16, pady=16)
+
+        header = ctk.CTkFrame(desk, fg_color="transparent")
+        header.pack(fill=tk.X, padx=12, pady=(10, 8))
+        ctk.CTkLabel(
+            header,
             text="RAVE Multi-Model Streaming",
-            font=("Arial", 18, "bold"),
-            bg="#2c3e50",
-            fg="white",
+            font=("Segoe UI", 18, "bold"),
+            text_color=text_bright,
+        ).pack()
+
+        body = ctk.CTkFrame(desk, fg_color="transparent")
+        body.pack(fill=tk.BOTH, expand=True, padx=10, pady=8)
+
+        # Left panel: global settings.
+        left_panel = ctk.CTkFrame(
+            body,
+            fg_color=panel_bg,
+            corner_radius=14,
+            border_width=1,
+            border_color=panel_border,
         )
-        title_label.pack(pady=15)
+        left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+        ctk.CTkLabel(
+            left_panel,
+            text="Global Settings",
+            font=("Segoe UI", 11, "bold"),
+            text_color=text_muted,
+        ).pack(anchor="w", padx=12, pady=(10, 4))
 
-        main_container = tk.Frame(self.root)
-        main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        def row(parent, label):
+            line = ctk.CTkFrame(parent, fg_color="transparent")
+            line.pack(fill=tk.X, padx=10, pady=4)
+            ctk.CTkLabel(
+                line,
+                text=label,
+                width=120,
+                anchor="w",
+                text_color=text_main,
+                font=("Segoe UI", 9),
+            ).pack(side=tk.LEFT)
+            return line
 
-        canvas = tk.Canvas(main_container)
-        scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
-        scrollable_frame = tk.Frame(canvas)
+        sr_row = row(left_panel, "Sample Rate")
+        sr_var = tk.StringVar(value=str(self.sr.get()))
+        ctk.CTkOptionMenu(
+            sr_row,
+            values=["22050", "44100", "48000"],
+            variable=sr_var,
+            command=lambda value: self.sr.set(int(value)),
+            width=120,
+            corner_radius=8,
+            fg_color="#3a424d",
+            button_color="#2a3038",
+            button_hover_color="#232830",
+            dropdown_fg_color="#2a3038",
+            text_color=text_main,
+        ).pack(side=tk.RIGHT)
 
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all")),
-        )
+        chunk_row = row(left_panel, "Chunk Duration")
+        chunk_var = tk.StringVar(value=str(self.chunk_duration.get()))
+        ctk.CTkOptionMenu(
+            chunk_row,
+            values=["0.5", "1.0", "1.5", "2.0", "2.5", "3.0"],
+            variable=chunk_var,
+            command=lambda value: self.chunk_duration.set(float(value)),
+            width=120,
+            corner_radius=8,
+            fg_color="#3a424d",
+            button_color="#2a3038",
+            button_hover_color="#232830",
+            dropdown_fg_color="#2a3038",
+            text_color=text_main,
+        ).pack(side=tk.RIGHT)
 
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        content = scrollable_frame
-
-        global_frame = ttk.LabelFrame(content, text="Global Audio Settings", padding=10)
-        global_frame.pack(fill=tk.X, pady=(0, 15))
-
-        sr_frame = tk.Frame(global_frame)
-        sr_frame.pack(fill=tk.X, pady=5)
-        tk.Label(sr_frame, text="Sample Rate:", width=15, anchor="w").pack(side=tk.LEFT)
-        sr_combo = ttk.Combobox(
-            sr_frame,
-            textvariable=self.sr,
-            values=[22050, 44100, 48000],
-            state="readonly",
-            width=15,
-        )
-        sr_combo.pack(side=tk.LEFT, padx=5)
-
-        chunk_frame = tk.Frame(global_frame)
-        chunk_frame.pack(fill=tk.X, pady=5)
-        tk.Label(chunk_frame, text="Chunk Duration (s):", width=15, anchor="w").pack(side=tk.LEFT)
-        chunk_spin = tk.Spinbox(
-            chunk_frame,
-            from_=0.5,
-            to=3.0,
-            increment=0.5,
-            textvariable=self.chunk_duration,
-            width=15,
-        )
-        chunk_spin.pack(side=tk.LEFT, padx=5)
-
-        perf_frame = tk.Frame(global_frame)
-        perf_frame.pack(fill=tk.X, pady=5)
-        tk.Label(perf_frame, text="Performance Mode:", width=15, anchor="w").pack(side=tk.LEFT)
-        perf_combo = ttk.Combobox(
-            perf_frame,
-            textvariable=self.performance_mode,
+        perf_row = row(left_panel, "Performance")
+        ctk.CTkOptionMenu(
+            perf_row,
             values=["Quality", "Balanced", "Max Stability"],
-            state="readonly",
-            width=15,
-        )
-        perf_combo.pack(side=tk.LEFT, padx=5)
-        tk.Label(
-            perf_frame,
-            text="Higher stability keeps audio running by reducing update rate under load",
-            fg="gray",
-        ).pack(side=tk.LEFT, padx=10)
+            variable=self.performance_mode,
+            width=140,
+            corner_radius=8,
+            fg_color="#3a424d",
+            button_color="#2a3038",
+            button_hover_color="#232830",
+            dropdown_fg_color="#2a3038",
+            text_color=text_main,
+        ).pack(side=tk.RIGHT)
 
-        calibration_frame = tk.Frame(global_frame)
-        calibration_frame.pack(fill=tk.X, pady=5)
-        tk.Label(calibration_frame, text="Calibration:", width=15, anchor="w").pack(side=tk.LEFT)
-        self.calibrate_button = tk.Button(
-            calibration_frame,
+        cal_row = row(left_panel, "Calibration")
+        self.calibrate_button = ctk.CTkButton(
+            cal_row,
             text="Quick Calibrate",
             command=self.run_quick_calibration,
-            width=15,
+            width=120,
+            height=30,
+            corner_radius=8,
+            fg_color="#444444",
+            hover_color="#555555",
+            text_color=text_bright,
         )
-        self.calibrate_button.pack(side=tk.LEFT, padx=5)
-        tk.Checkbutton(
-            calibration_frame,
-            text="Auto-calibrate before streaming",
+        self.calibrate_button.pack(side=tk.RIGHT)
+
+        auto_row = ctk.CTkFrame(left_panel, fg_color="transparent")
+        auto_row.pack(fill=tk.X, padx=10, pady=(2, 8))
+        ctk.CTkCheckBox(
+            auto_row,
+            text="Auto-calibrate before start",
             variable=self.auto_calibrate_on_start,
-        ).pack(side=tk.LEFT, padx=10)
+            font=("Segoe UI", 9),
+            text_color=text_main,
+            fg_color="#3f6f56",
+            hover_color="#2f5a44",
+            border_color="#4a5563",
+        ).pack(side=tk.LEFT)
 
-        calibration_status_frame = tk.Frame(global_frame)
-        calibration_status_frame.pack(fill=tk.X, pady=2)
-        tk.Label(
-            calibration_status_frame,
+        ctk.CTkLabel(
+            left_panel,
             textvariable=self.calibration_summary,
-            fg="gray",
-            anchor="w",
+            wraplength=220,
             justify=tk.LEFT,
-        ).pack(side=tk.LEFT, padx=(15, 0))
+            text_color=text_muted,
+            font=("Segoe UI", 8),
+        ).pack(fill=tk.X, padx=10, pady=(0, 8))
 
-        slots_header = ttk.LabelFrame(content, text="Model Slots", padding=10)
-        slots_header.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        # Center panel: channels with horizontal scrolling.
+        center_panel = ctk.CTkFrame(
+            body,
+            fg_color=panel_bg,
+            corner_radius=14,
+            border_width=1,
+            border_color=panel_border,
+        )
+        center_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+        ctk.CTkLabel(
+            center_panel,
+            text="Channel Strips",
+            font=("Segoe UI", 11, "bold"),
+            text_color=text_muted,
+        ).pack(anchor="w", padx=12, pady=(10, 2))
 
-        add_button_frame = tk.Frame(slots_header)
-        add_button_frame.pack(fill=tk.X, pady=(0, 10))
+        controls_row = ctk.CTkFrame(center_panel, fg_color="transparent")
+        controls_row.pack(fill=tk.X, padx=10, pady=(8, 4))
 
-        tk.Button(
-            add_button_frame,
+        ctk.CTkButton(
+            controls_row,
             text="+ Add Model Slot",
             command=self.add_model_slot,
-            bg="#27ae60",
-            fg="white",
-            font=("Arial", 10, "bold"),
-            cursor="hand2",
-        ).pack(side=tk.LEFT, padx=5)
+            font=("Segoe UI", 10, "bold"),
+            width=150,
+            height=32,
+            corner_radius=10,
+            fg_color=accent_orange,
+            hover_color="#c8692f",
+            text_color=text_bright,
+        ).pack(side=tk.LEFT)
 
-        tk.Label(
-            add_button_frame,
-            text="(Activate multiple to mix audio)",
-            font=("Arial", 9, "italic"),
-            fg="gray",
+        ctk.CTkLabel(
+            controls_row,
+            text="Use horizontal scrollbar to view all channels",
+            text_color=text_muted,
+            font=("Segoe UI", 8),
         ).pack(side=tk.LEFT, padx=10)
 
-        self.slots_container = tk.Frame(slots_header)
-        self.slots_container.pack(fill=tk.BOTH, expand=True)
+        channels_canvas = tk.Canvas(center_panel, bg=panel_bg, highlightthickness=0)
+        channels_canvas.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 4))
 
-        status_frame = ttk.LabelFrame(content, text="Status Log", padding=10)
-        status_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        channels_h_scroll = ctk.CTkScrollbar(
+            center_panel,
+            orientation="horizontal",
+            command=channels_canvas.xview,
+            fg_color="#101319",
+            button_color="#050608",
+            button_hover_color="#11151b",
+        )
+        channels_h_scroll.pack(fill=tk.X, padx=8, pady=(0, 8))
+        channels_canvas.configure(xscrollcommand=channels_h_scroll.set)
 
-        self.status_text = tk.Text(
-            status_frame,
-            height=8,
-            width=70,
+        self.slots_container = ctk.CTkFrame(channels_canvas, fg_color=panel_bg, corner_radius=0)
+        self.channels_window_id = channels_canvas.create_window((0, 0), window=self.slots_container, anchor="nw")
+
+        self.slots_container.bind(
+            "<Configure>",
+            lambda e: channels_canvas.configure(scrollregion=channels_canvas.bbox("all")),
+        )
+
+        def _on_channels_canvas_configure(event):
+            channels_canvas.itemconfigure(self.channels_window_id, height=event.height)
+            slot_height = max(260, event.height - 12)
+            for slot in getattr(self, "model_slots", []):
+                if hasattr(slot, "frame"):
+                    slot.frame.configure(height=slot_height)
+
+        channels_canvas.bind("<Configure>", _on_channels_canvas_configure)
+
+        # Right panel: status and master section.
+        right_panel = ctk.CTkFrame(
+            body,
+            fg_color=panel_bg,
+            corner_radius=14,
+            border_width=1,
+            border_color=panel_border,
+            width=300,
+        )
+        right_panel.pack(side=tk.LEFT, fill=tk.Y)
+        right_panel.pack_propagate(False)
+        ctk.CTkLabel(
+            right_panel,
+            text="Master / Status",
+            font=("Segoe UI", 11, "bold"),
+            text_color=text_muted,
+        ).pack(anchor="w", padx=12, pady=(10, 2))
+
+        ctk.CTkLabel(
+            right_panel,
+            text="Status Log",
+            text_color=text_muted,
+            font=("Segoe UI", 9, "bold"),
+        ).pack(anchor="w", padx=10, pady=(8, 4))
+
+        status_wrap = ctk.CTkFrame(right_panel, fg_color="transparent")
+        status_wrap.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 8))
+
+        self.status_text = ctk.CTkTextbox(
+            status_wrap,
+            width=280,
+            height=16,
             state="disabled",
-            bg="#f0f0f0",
+            corner_radius=10,
+            fg_color="#232830",
+            text_color="#9ee9b8",
             font=("Consolas", 9),
         )
-        self.status_text.pack(fill=tk.BOTH, expand=True)
+        self.status_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        status_scroll = ttk.Scrollbar(status_frame, command=self.status_text.yview)
-        status_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self.status_text.config(yscrollcommand=status_scroll.set)
+        ctk.CTkLabel(
+            right_panel,
+            text="STREAM STATE",
+            text_color=text_muted,
+            font=("Segoe UI", 8, "bold"),
+        ).pack(anchor="w", padx=10, pady=(0, 2))
 
-        self.add_model_slot()
+        self.stream_state_label = ctk.CTkLabel(
+            right_panel,
+            text="IDLE",
+            fg_color="#232830",
+            text_color="#80e4ef",
+            corner_radius=10,
+            width=18,
+            font=("Consolas", 12, "bold"),
+            height=38,
+        )
+        self.stream_state_label.pack(padx=10, pady=(0, 10))
 
-        button_frame = tk.Frame(content)
-        button_frame.pack(fill=tk.X, pady=10)
+        # Footer controls.
+        footer = ctk.CTkFrame(desk, fg_color="transparent")
+        footer.pack(fill=tk.X, padx=12, pady=(4, 12))
 
-        self.start_button = tk.Button(
-            button_frame,
+        footer_buttons = ctk.CTkFrame(footer, fg_color="transparent")
+        footer_buttons.pack(anchor="center")
+
+        self.start_button = ctk.CTkButton(
+            footer_buttons,
             text="START STREAMING",
             command=self.start_streaming,
-            bg="#27ae60",
-            fg="white",
-            font=("Arial", 12, "bold"),
-            height=2,
-            cursor="hand2",
+            font=("Segoe UI", 12, "bold"),
+            height=40,
+            width=220,
+            corner_radius=12,
+            fg_color=accent_green,
+            hover_color="#459d48",
+            text_color=text_bright,
         )
-        self.start_button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.start_button.pack(side=tk.LEFT, padx=(0, 8), pady=2)
 
-        self.stop_button = tk.Button(
-            button_frame,
+        self.stop_button = ctk.CTkButton(
+            footer_buttons,
             text="STOP STREAMING",
             command=self.stop_streaming,
-            bg="#e74c3c",
-            fg="white",
-            font=("Arial", 12, "bold"),
-            height=2,
+            font=("Segoe UI", 12, "bold"),
+            height=40,
+            width=220,
+            corner_radius=12,
+            fg_color=accent_red,
+            hover_color="#bf2a2a",
+            text_color=text_bright,
             state="disabled",
-            cursor="hand2",
         )
-        self.stop_button.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=(5, 0))
+        self.stop_button.pack(side=tk.LEFT, padx=(8, 0), pady=2)
 
+        self.add_model_slot()
         self.log_status("GUI initialized. Add model slots to begin.")

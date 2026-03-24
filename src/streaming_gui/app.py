@@ -1,4 +1,5 @@
 import tkinter as tk
+import customtkinter as ctk
 
 from src.streaming import QuickCalibrator, StreamingEngine
 
@@ -12,6 +13,8 @@ class RAVEStreamGUI(StreamGUIUIMixin, StreamGUISlotsMixin, StreamGUIModelIOMixin
     """Composed GUI controller with focused mixins by concern."""
 
     def __init__(self, root):
+        ctk.set_appearance_mode("dark")
+        ctk.set_default_color_theme("dark-blue")
         self.root = root
         self.root.title("RAVE Multi-Model Streaming")
         self.root.geometry("1000x850")

@@ -1,4 +1,5 @@
 import os
+import re
 from tkinter import filedialog, messagebox
 
 import librosa
@@ -6,6 +7,95 @@ import torch
 
 
 class StreamGUIModelIOMixin:
+    @staticmethod
+    def _coerce_prior_latent(z, latent_size, latent_length):
+        if isinstance(z, (tuple, list)):
+            tensors = [item for item in z if torch.is_tensor(item)]
+            if not tensors:
+                raise ValueError("Prior output tuple/list has no tensor")
+            z = tensors[0]
+
+        if not torch.is_tensor(z):
+            raise ValueError("Prior output is not a tensor")
+
+        if z.dim() == 2:
+            z = z.unsqueeze(0)
+        elif z.dim() != 3:
+            raise ValueError(f"Unsupported prior latent rank: {z.dim()}")
+
+        if z.shape[1] != latent_size and z.shape[2] == latent_size:
+            z = z.transpose(1, 2)
+
+        if z.shape[1] != latent_size:
+            raise ValueError(f"Prior latent channels mismatch: got {z.shape[1]}, expected {latent_size}")
+
+        if z.shape[2] > latent_length:
+            z = z[:, :, :latent_length]
+        elif z.shape[2] < latent_length:
+            z = torch.nn.functional.pad(z, (0, latent_length - z.shape[2]))
+
+        return z
+
+    def _find_compatible_prior_seed(self, prior_model, decoder_model, latent_size, latent_length):
+        with torch.no_grad():
+            for seed_channels in (1, 1024):
+                try:
+                    seed = torch.zeros(1, seed_channels, latent_length).float()
+                    z_out = prior_model.prior(seed)
+                    z = self._coerce_prior_latent(z_out, latent_size, latent_length)
+                    _ = decoder_model.decode(z)
+                    return seed_channels
+                except Exception:
+                    continue
+        return None
+
+    def load_prior_for_slot_obj(self, slot):
+        if not slot.is_loaded or slot.model is None:
+            messagebox.showwarning("Decoder Required", "Load the decoder model in this slot before loading a prior.")
+            return
+
+        filename = filedialog.askopenfilename(
+            title=f"Select Prior Model for Slot {slot.slot_id + 1}",
+            filetypes=[("TorchScript Models", "*.ts"), ("All Files", "*.*")],
+            initialdir=os.path.join(os.getcwd(), "models"),
+        )
+
+        if not filename:
+            return
+
+        try:
+            self.log_status(f"Slot {slot.slot_id + 1}: Loading prior {os.path.basename(filename)}...")
+            prior_model = torch.jit.load(filename).eval()
+
+            if not hasattr(prior_model, "prior"):
+                raise Exception("Selected file does not expose a prior(...) method")
+
+            with torch.no_grad():
+                compatible_seed = self._find_compatible_prior_seed(
+                    prior_model=prior_model,
+                    decoder_model=slot.model,
+                    latent_size=slot.latent_size,
+                    latent_length=slot.latent_length,
+                )
+
+            if compatible_seed is None:
+                raise Exception("Could not find a compatible prior seed layout for this decoder")
+
+            slot.prior_model = prior_model
+            slot.prior_model_path = filename
+            slot.prior_seed_channels = compatible_seed
+            slot.prior_status_var.set(os.path.basename(filename))
+            slot.prior_needs_warmup = True
+            slot.prior_chunks_generated = 0
+            self.log_status(
+                f"Slot {slot.slot_id + 1}: Prior loaded successfully (seed channels: {compatible_seed})"
+            )
+            self.update_input_controls_obj(slot)
+
+        except Exception as e:
+            messagebox.showerror("Prior Load Error", f"Failed to load compatible prior:\n{str(e)}")
+            self.log_status(f"Slot {slot.slot_id + 1}: Prior load failed - {str(e)}")
+
     def select_audio_for_slot_obj(self, slot):
         filename = filedialog.askopenfilename(
             title=f"Select Audio File for Slot {slot.slot_id + 1}",
@@ -101,6 +191,16 @@ class StreamGUIModelIOMixin:
 
             slot.model = model
             slot.model_path = full_path
+            slot.model_sr = None
+
+            # Common export naming convention includes sample rate, e.g. *_r48000_*.ts
+            name_match = re.search(r"_r(\d+)_", os.path.basename(full_path))
+            if name_match:
+                try:
+                    slot.model_sr = int(name_match.group(1))
+                except ValueError:
+                    slot.model_sr = None
+
             slot.latent_size = latent_size
             slot.latent_length = latent_length
             slot.output_length = output_length
@@ -108,8 +208,36 @@ class StreamGUIModelIOMixin:
             slot.is_loaded = True
             slot.status_var.set("Loaded (Inactive)")
 
+            # Decoder changed; clear prior state until user loads a compatible prior.
+            slot.prior_model = None
+            slot.prior_model_path = None
+            slot.prior_seed_channels = None
+            slot.embedded_prior_available = False
+            slot.embedded_prior_seed_channels = None
+            slot.prior_needs_warmup = True
+            slot.prior_chunks_generated = 0
+
+            if hasattr(model, "prior"):
+                embedded_seed = self._find_compatible_prior_seed(
+                    prior_model=model,
+                    decoder_model=model,
+                    latent_size=slot.latent_size,
+                    latent_length=slot.latent_length,
+                )
+                if embedded_seed is not None:
+                    slot.embedded_prior_available = True
+                    slot.embedded_prior_seed_channels = embedded_seed
+                    slot.prior_status_var.set(f"Embedded Prior (seed {embedded_seed})")
+                else:
+                    slot.prior_status_var.set("No Prior Loaded")
+            else:
+                slot.prior_status_var.set("No Prior Loaded")
+
             self.log_status(f"Slot {slot.slot_id + 1}: Model loaded successfully")
             self.log_status(f"  Latent: {slot.latent_size}x{slot.latent_length}, Output: {slot.output_length} samples")
+            if slot.model_sr is not None:
+                self.log_status(f"  Detected model sample rate: {slot.model_sr} Hz")
+            self.update_input_controls_obj(slot)
 
         except Exception as e:
             messagebox.showerror("Load Error", f"Failed to load model:\n{str(e)}")
@@ -140,7 +268,14 @@ class StreamGUIModelIOMixin:
         model_names = ["[No Model Loaded]"] + [os.path.basename(m) for m in self.available_models]
         for slot in self.model_slots:
             if hasattr(slot, "combo"):
-                slot.combo["values"] = model_names
+                try:
+                    slot.combo.configure(values=model_names)
+                except Exception:
+                    slot.combo["values"] = model_names
+
+            current = slot.model_var.get()
+            if current not in model_names:
+                slot.model_var.set("[No Model Loaded]")
 
     def discover_models(self):
         search_dirs = [

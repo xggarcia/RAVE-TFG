@@ -11,6 +11,46 @@ def deactivate_finished_audio_slot(self, slot):
     self.log(f"Slot {slot.slot_id + 1}: Audio playback finished")
 
 
+def deactivate_failed_prior_slot(self, slot, reason):
+    slot.use_prior.set(False)
+    slot.prior_needs_warmup = True
+    slot.prior_chunks_generated = 0
+    if slot.is_active.get():
+        slot.status_var.set("Active (Prior Off)")
+    else:
+        slot.status_var.set("Loaded (Prior Off)")
+    self.log(f"Slot {slot.slot_id + 1}: Prior generation failed, fallback to source mode - {reason}")
+
+
+def coerce_prior_latent(z, target_channels, target_frames):
+    if isinstance(z, (tuple, list)):
+        tensors = [item for item in z if torch.is_tensor(item)]
+        if not tensors:
+            raise ValueError("Prior output tuple/list has no tensor")
+        z = tensors[0]
+
+    if not torch.is_tensor(z):
+        raise ValueError("Prior output is not a tensor")
+
+    if z.dim() == 2:
+        z = z.unsqueeze(0)
+    elif z.dim() != 3:
+        raise ValueError(f"Unsupported prior latent rank: {z.dim()}")
+
+    if z.shape[1] != target_channels and z.shape[2] == target_channels:
+        z = z.transpose(1, 2)
+
+    if z.shape[1] != target_channels:
+        raise ValueError(f"Prior channels mismatch: got {z.shape[1]}, expected {target_channels}")
+
+    if z.shape[2] > target_frames:
+        z = z[:, :, :target_frames]
+    elif z.shape[2] < target_frames:
+        z = torch.nn.functional.pad(z, (0, target_frames - z.shape[2]))
+
+    return z
+
+
 def generate_mixed_chunk(self, active_slots):
     mixed_audio = np.zeros(self.chunk_samples, dtype=np.float32)
     decode_total_ms = 0.0
@@ -20,6 +60,7 @@ def generate_mixed_chunk(self, active_slots):
 
         if should_decode:
             decode_start = time.perf_counter()
+            prior_chunk_used = False
             with torch.no_grad():
                 if slot.input_mode.get() == "audio" and slot.encoded_latents is not None:
                     total_latent_frames = slot.encoded_latents.shape[-1]
@@ -37,9 +78,76 @@ def generate_mixed_chunk(self, active_slots):
                             continue
 
                     z = z * slot.temperature.get()
+
                 else:
                     z = torch.randn(1, slot.latent_size, slot.latent_length)
                     z = z * slot.random_intensity.get() * slot.temperature.get()
+
+                if slot.use_prior.get() and (slot.prior_model is not None or slot.embedded_prior_available):
+                    try:
+                        if slot.prior_model is not None:
+                            prior_model = slot.prior_model
+                            seed_channels = slot.prior_seed_channels if slot.prior_seed_channels in (1, 1024) else 1
+                        else:
+                            prior_model = slot.model
+                            seed_channels = (
+                                slot.embedded_prior_seed_channels if slot.embedded_prior_seed_channels in (1, 1024) else 1
+                            )
+
+                        if slot.prior_needs_warmup:
+                            warmup_length = max(slot.latent_length * 4, slot.latent_length + 64)
+                            warmup_seed_candidates = []
+
+                            # Candidate 1: source-conditioned seed when channel layout allows it.
+                            if seed_channels == slot.latent_size:
+                                repeats = max(2, int(np.ceil(warmup_length / slot.latent_length)))
+                                warmup_seed_candidates.append(z.repeat(1, 1, repeats)[:, :, :warmup_length])
+
+                            # Candidate 2: robust zero seed fallback.
+                            warmup_seed_candidates.append(torch.zeros(1, seed_channels, warmup_length).float())
+
+                            z_warm = None
+                            warmup_error = None
+                            for seed in warmup_seed_candidates:
+                                try:
+                                    z_prior = prior_model.prior(seed)
+                                    z_warm = coerce_prior_latent(z_prior, slot.latent_size, warmup_length)
+                                    break
+                                except Exception as exc:
+                                    warmup_error = exc
+
+                            if z_warm is None:
+                                raise warmup_error if warmup_error is not None else RuntimeError("Prior warmup failed")
+
+                            z = z_warm[:, :, -slot.latent_length:]
+                            slot.prior_needs_warmup = False
+                            slot.prior_chunks_generated = 0
+                        else:
+                            seed_candidates = []
+                            if seed_channels == slot.latent_size:
+                                seed_candidates.append(z)
+                            seed_candidates.append(torch.zeros(1, seed_channels, slot.latent_length).float())
+
+                            z_out = None
+                            prior_error = None
+                            for seed in seed_candidates:
+                                try:
+                                    z_prior = prior_model.prior(seed)
+                                    z_out = coerce_prior_latent(z_prior, slot.latent_size, slot.latent_length)
+                                    break
+                                except Exception as exc:
+                                    prior_error = exc
+
+                            if z_out is None:
+                                raise prior_error if prior_error is not None else RuntimeError("Prior inference failed")
+
+                            z = z_out
+
+                        z = z * slot.prior_temperature.get()
+                        prior_chunk_used = True
+                    except Exception as prior_exc:
+                        self.schedule_ui_callback(lambda s=slot, msg=str(prior_exc): deactivate_failed_prior_slot(self, s, msg))
+                        # Keep source latent z for this chunk and continue streaming.
 
                 if slot.prev_z is not None:
                     smooth = slot.smoothing.get()
@@ -47,6 +155,13 @@ def generate_mixed_chunk(self, active_slots):
 
                 slot.prev_z = z
                 audio = slot.model.decode(z).cpu().numpy().flatten()
+
+            if prior_chunk_used and slot.prior_chunks_generated == 0:
+                fade = np.linspace(0.0, 1.0, len(audio), dtype=np.float32)
+                audio = audio * fade
+
+            if prior_chunk_used:
+                slot.prior_chunks_generated += 1
 
             decode_total_ms += (time.perf_counter() - decode_start) * 1000.0
 

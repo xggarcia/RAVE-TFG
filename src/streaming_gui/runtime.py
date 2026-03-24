@@ -13,10 +13,10 @@ class StreamGUIRuntimeMixin:
         if threading.current_thread() is not threading.main_thread():
             self.root.after(0, lambda msg=message: self.log_status(msg))
             return
-        self.status_text.config(state="normal")
+        self.status_text.configure(state="normal")
         self.status_text.insert(tk.END, f"{message}\n")
         self.status_text.see(tk.END)
-        self.status_text.config(state="disabled")
+        self.status_text.configure(state="disabled")
 
     def _get_active_loaded_slots(self):
         return [slot for slot in self.model_slots if slot.is_active.get() and slot.is_loaded]
@@ -30,6 +30,30 @@ class StreamGUIRuntimeMixin:
                 "All active models must produce the same chunk size.\n" f"Detected output lengths: {lengths_msg}",
             )
             return False
+
+        detected_srs = {slot.model_sr for slot in active_slots if slot.model_sr is not None}
+        if len(detected_srs) > 1:
+            srs_msg = ", ".join(str(rate) for rate in sorted(detected_srs))
+            messagebox.showerror(
+                "Incompatible Model Sample Rates",
+                "All active models should use the same sample rate for correct speed/pitch.\n"
+                f"Detected rates: {srs_msg}",
+            )
+            return False
+
+        missing_prior_slots = [
+            slot
+            for slot in active_slots
+            if slot.use_prior.get() and slot.prior_model is None and not slot.embedded_prior_available
+        ]
+        if missing_prior_slots:
+            slot_labels = ", ".join(f"Slot {slot.slot_id + 1}" for slot in missing_prior_slots)
+            messagebox.showerror(
+                "Missing Prior Models",
+                "Prior mode is enabled but no compatible prior is loaded for:\n" f"{slot_labels}",
+            )
+            return False
+
         return True
 
     def _apply_calibration_result(self, result):
@@ -47,7 +71,7 @@ class StreamGUIRuntimeMixin:
 
         signature = self.calibrator.build_signature(slots, self.sr.get())
 
-        self.calibrate_button.config(state="disabled")
+        self.calibrate_button.configure(state="disabled")
         try:
             result = self.calibrator.run(slots, self.sr.get())
         except Exception as e:
@@ -55,7 +79,7 @@ class StreamGUIRuntimeMixin:
             self.log_status(f"[CAL] Failed: {e}")
             return
         finally:
-            self.calibrate_button.config(state="normal")
+            self.calibrate_button.configure(state="normal")
 
         self.last_calibration_signature = signature
         self.last_calibration_result = result
@@ -82,7 +106,7 @@ class StreamGUIRuntimeMixin:
         if self.last_calibration_signature == signature and self.last_calibration_result is not None:
             return True
 
-        self.calibrate_button.config(state="disabled")
+        self.calibrate_button.configure(state="disabled")
         try:
             result = self.calibrator.run(active_slots, self.sr.get())
         except Exception as e:
@@ -90,7 +114,7 @@ class StreamGUIRuntimeMixin:
             self.log_status(f"[CAL] Auto calibration failed: {e}")
             return False
         finally:
-            self.calibrate_button.config(state="normal")
+            self.calibrate_button.configure(state="normal")
 
         self.last_calibration_signature = signature
         self.last_calibration_result = result
@@ -117,6 +141,19 @@ class StreamGUIRuntimeMixin:
         if not self._ensure_calibrated_for_slots(active_slots):
             return
 
+        detected_srs = {slot.model_sr for slot in active_slots if slot.model_sr is not None}
+        if len(detected_srs) == 1:
+            target_sr = next(iter(detected_srs))
+            if self.sr.get() != target_sr:
+                self.log_status(
+                    f"[SR] Adjusting output sample rate from {self.sr.get()} Hz to {target_sr} Hz to match model."
+                )
+                self.sr.set(target_sr)
+        elif len(detected_srs) == 0:
+            self.log_status(
+                "[SR] Model sample rate not detected from filename. If playback sounds sped up/slowed down, try 48000 Hz or retrain/export with clear naming."
+            )
+
         self.chunk_samples = active_slots[0].output_length
         actual_duration = self.chunk_samples / self.sr.get()
 
@@ -126,7 +163,21 @@ class StreamGUIRuntimeMixin:
         self.log_status(f"Chunk: {self.chunk_samples} samples ({actual_duration:.3f}s)")
 
         for slot in active_slots:
-            input_info = "Random" if slot.input_mode.get() == "random" else f"Audio: {os.path.basename(slot.audio_file_path) if slot.audio_file_path else 'None'}"
+            if slot.use_prior.get():
+                slot.prior_needs_warmup = True
+                slot.prior_chunks_generated = 0
+
+            source_info = "Random" if slot.input_mode.get() == "random" else f"Audio: {os.path.basename(slot.audio_file_path) if slot.audio_file_path else 'None'}"
+
+            if not slot.use_prior.get():
+                input_info = f"{source_info} | Prior: Off"
+            else:
+                if slot.prior_model_path:
+                    input_info = f"{source_info} | Prior: {os.path.basename(slot.prior_model_path)}"
+                elif slot.embedded_prior_available:
+                    input_info = f"{source_info} | Prior: Embedded"
+                else:
+                    input_info = f"{source_info} | Prior: Missing"
             self.log_status(f"  Slot {slot.slot_id + 1}: {os.path.basename(slot.model_path)} [{input_info}]")
             self.log_status(f"    Gain={slot.gain.get():.2f}, Temp={slot.temperature.get():.2f}, Smooth={slot.smoothing.get():.2f}")
 
@@ -153,8 +204,8 @@ class StreamGUIRuntimeMixin:
         self.engine.start()
         self.stream_thread = self.engine.consumer_thread
 
-        self.start_button.config(state="disabled")
-        self.stop_button.config(state="normal")
+        self.start_button.configure(state="disabled")
+        self.stop_button.configure(state="normal")
 
         self.log_status(
             f"Mode: {self.performance_mode.get()} | Queue: {self.engine.queue_maxsize} | "
@@ -172,6 +223,6 @@ class StreamGUIRuntimeMixin:
             self.stream.close()
             self.stream = None
 
-        self.start_button.config(state="normal")
-        self.stop_button.config(state="disabled")
+        self.start_button.configure(state="normal")
+        self.stop_button.configure(state="disabled")
         self.log_status("STREAMING STOPPED")

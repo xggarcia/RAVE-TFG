@@ -8,6 +8,7 @@ class ModelSlot:
         self.slot_id = slot_id
         self.model = None
         self.model_path = None
+        self.model_sr = None
         self.is_active = tk.BooleanVar(value=False)
         self.is_loaded = False
 
@@ -29,6 +30,18 @@ class ModelSlot:
         self.latent_position = 0
         self.loop_audio = tk.BooleanVar(value=True)
         self.random_intensity = tk.DoubleVar(value=1.0)
+
+        # Prior generation parameters/state
+        self.use_prior = tk.BooleanVar(value=False)
+        self.prior_model = None
+        self.prior_model_path = None
+        self.prior_seed_channels = None
+        self.embedded_prior_available = False
+        self.embedded_prior_seed_channels = None
+        self.prior_temperature = tk.DoubleVar(value=1.0)
+        self.prior_status_var = tk.StringVar(value="No Prior Loaded")
+        self.prior_needs_warmup = True
+        self.prior_chunks_generated = 0
 
         # Streaming cache for load shedding
         self.cached_audio = None

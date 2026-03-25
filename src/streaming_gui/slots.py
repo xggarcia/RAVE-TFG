@@ -95,7 +95,6 @@ class StreamGUISlotsMixin:
             slot.intensity_frame.pack_forget()
             slot.audio_frame.pack(fill="x", pady=(4, 0))
 
-        # Keep prior row mounted to avoid layout jumps; only toggle control enablement.
         slot.prior_frame.pack(fill="x", pady=(4, 0))
         slot.prior_load_btn.configure(state="normal")
         slot.prior_temp_scale.configure(state="normal" if slot.use_prior.get() and has_any_prior else "disabled")

@@ -1,5 +1,6 @@
 import os
 import threading
+import time
 import tkinter as tk
 from tkinter import messagebox
 
@@ -207,6 +208,10 @@ class StreamGUIRuntimeMixin:
         self.start_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
 
+        self._uptime_start = time.time()
+        self._uptime_running = True
+        self._tick_uptime()
+
         self.log_status(
             f"Mode: {self.performance_mode.get()} | Queue: {self.engine.queue_maxsize} | "
             f"Base decode stride: {self.engine.base_decode_stride}"
@@ -225,4 +230,6 @@ class StreamGUIRuntimeMixin:
 
         self.start_button.configure(state="normal")
         self.stop_button.configure(state="disabled")
+        self._uptime_running = False
+        self.uptime_label.configure(text="00:00:00")
         self.log_status("STREAMING STOPPED")

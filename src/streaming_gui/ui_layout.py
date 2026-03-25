@@ -1,3 +1,4 @@
+import time
 import tkinter as tk
 import customtkinter as ctk
 
@@ -52,7 +53,7 @@ class StreamGUILayoutMixin:
         ctk.CTkLabel(
             left_panel,
             text="Global Settings",
-            font=("Segoe UI", 11, "bold"),
+            font=("Segoe UI", 13, "bold"),
             text_color=text_muted,
         ).pack(anchor="w", padx=12, pady=(10, 4))
 
@@ -65,7 +66,7 @@ class StreamGUILayoutMixin:
                 width=120,
                 anchor="w",
                 text_color=text_main,
-                font=("Segoe UI", 9),
+                font=("Segoe UI", 11),
             ).pack(side=tk.LEFT)
             return line
 
@@ -135,7 +136,7 @@ class StreamGUILayoutMixin:
             auto_row,
             text="Auto-calibrate before start",
             variable=self.auto_calibrate_on_start,
-            font=("Segoe UI", 9),
+            font=("Segoe UI", 11),
             text_color=text_main,
             fg_color="#3f6f56",
             hover_color="#2f5a44",
@@ -148,7 +149,7 @@ class StreamGUILayoutMixin:
             wraplength=220,
             justify=tk.LEFT,
             text_color=text_muted,
-            font=("Segoe UI", 8),
+            font=("Segoe UI", 10),
         ).pack(fill=tk.X, padx=10, pady=(0, 8))
 
         # Center panel: channels with horizontal scrolling.
@@ -163,7 +164,7 @@ class StreamGUILayoutMixin:
         ctk.CTkLabel(
             center_panel,
             text="Channel Strips",
-            font=("Segoe UI", 11, "bold"),
+            font=("Segoe UI", 13, "bold"),
             text_color=text_muted,
         ).pack(anchor="w", padx=12, pady=(10, 2))
 
@@ -174,9 +175,9 @@ class StreamGUILayoutMixin:
             controls_row,
             text="+ Add Model Slot",
             command=self.add_model_slot,
-            font=("Segoe UI", 10, "bold"),
-            width=150,
-            height=32,
+            font=("Segoe UI", 12, "bold"),
+            width=170,
+            height=36,
             corner_radius=10,
             fg_color=accent_orange,
             hover_color="#c8692f",
@@ -187,7 +188,7 @@ class StreamGUILayoutMixin:
             controls_row,
             text="Use horizontal scrollbar to view all channels",
             text_color=text_muted,
-            font=("Segoe UI", 8),
+            font=("Segoe UI", 12),
         ).pack(side=tk.LEFT, padx=10)
 
         channels_canvas = tk.Canvas(center_panel, bg=panel_bg, highlightthickness=0)
@@ -235,7 +236,7 @@ class StreamGUILayoutMixin:
         ctk.CTkLabel(
             right_panel,
             text="Master / Status",
-            font=("Segoe UI", 11, "bold"),
+            font=("Segoe UI", 13, "bold"),
             text_color=text_muted,
         ).pack(anchor="w", padx=12, pady=(10, 2))
 
@@ -243,7 +244,7 @@ class StreamGUILayoutMixin:
             right_panel,
             text="Status Log",
             text_color=text_muted,
-            font=("Segoe UI", 9, "bold"),
+            font=("Segoe UI", 11, "bold"),
         ).pack(anchor="w", padx=10, pady=(8, 4))
 
         status_wrap = ctk.CTkFrame(right_panel, fg_color="transparent")
@@ -257,28 +258,27 @@ class StreamGUILayoutMixin:
             corner_radius=10,
             fg_color="#232830",
             text_color="#9ee9b8",
-            font=("Consolas", 9),
+            font=("Consolas", 11),
         )
         self.status_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         ctk.CTkLabel(
             right_panel,
-            text="STREAM STATE",
+            text="SESSION TIME",
             text_color=text_muted,
-            font=("Segoe UI", 8, "bold"),
+            font=("Segoe UI", 11, "bold"),
         ).pack(anchor="w", padx=10, pady=(0, 2))
 
-        self.stream_state_label = ctk.CTkLabel(
+        self.uptime_label = ctk.CTkLabel(
             right_panel,
-            text="IDLE",
+            text="00:00:00",
             fg_color="#232830",
             text_color="#80e4ef",
             corner_radius=10,
-            width=18,
-            font=("Consolas", 12, "bold"),
-            height=38,
+            font=("Consolas", 20, "bold"),
+            height=44,
         )
-        self.stream_state_label.pack(padx=10, pady=(0, 10))
+        self.uptime_label.pack(fill=tk.X, padx=10, pady=(0, 10))
 
         # Footer controls.
         footer = ctk.CTkFrame(desk, fg_color="transparent")
@@ -316,5 +316,16 @@ class StreamGUILayoutMixin:
         )
         self.stop_button.pack(side=tk.LEFT, padx=(8, 0), pady=2)
 
+        self._uptime_start = None
+        self._uptime_running = False
         self.add_model_slot()
         self.log_status("GUI initialized. Add model slots to begin.")
+
+    def _tick_uptime(self):
+        if not self._uptime_running:
+            return
+        elapsed = int(time.time() - self._uptime_start)
+        h, rem = divmod(elapsed, 3600)
+        m, s = divmod(rem, 60)
+        self.uptime_label.configure(text=f"{h:02d}:{m:02d}:{s:02d}")
+        self.root.after(1000, self._tick_uptime)

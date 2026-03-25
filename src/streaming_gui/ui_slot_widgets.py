@@ -30,12 +30,27 @@ class StreamGUISlotWidgetsMixin:
         slot_frame.pack_propagate(False)
         slot.frame = slot_frame
 
+        title_row = ctk.CTkFrame(slot_frame, fg_color="transparent")
+        title_row.pack(fill=tk.X, padx=8, pady=(8, 2))
         ctk.CTkLabel(
-            slot_frame,
+            title_row,
             text=f"Model Slot {slot_id + 1}",
             font=("Segoe UI", 12, "bold"),
             text_color=colors[color_index],
-        ).pack(anchor="w", padx=10, pady=(8, 2))
+        ).pack(side=tk.LEFT)
+        delete_btn = ctk.CTkButton(
+            title_row,
+            text="🗑",
+            command=lambda s=slot: self.delete_model_slot(s),
+            fg_color="#e74c3c",
+            hover_color="#cc3a2c",
+            text_color="#d9dee5",
+            font=("Segoe UI", 10, "bold"),
+            width=32,
+            height=26,
+            corner_radius=8,
+        )
+        delete_btn.pack(side=tk.RIGHT)
 
         top_row = ctk.CTkFrame(slot_frame, fg_color="transparent")
         top_row.pack(fill=tk.X, padx=8, pady=(6, 4))
@@ -44,7 +59,7 @@ class StreamGUISlotWidgetsMixin:
             top_row,
             text="ACTIVE",
             variable=slot.is_active,
-            font=("Segoe UI", 9, "bold"),
+            font=("Segoe UI", 11, "bold"),
             text_color=colors[color_index],
             fg_color="#3f6f56",
             hover_color="#2f5a44",
@@ -56,7 +71,7 @@ class StreamGUISlotWidgetsMixin:
         status_label = ctk.CTkLabel(
             top_row,
             textvariable=slot.status_var,
-            font=("Segoe UI", 8, "italic"),
+            font=("Segoe UI", 10, "italic"),
             text_color="#a7b0bc",
             anchor="e",
         )
@@ -70,6 +85,7 @@ class StreamGUISlotWidgetsMixin:
             values=[slot.model_var.get()],
             variable=slot.model_var,
             width=150,
+            dynamic_resizing=False,
             corner_radius=8,
             fg_color="#3a424d",
             button_color="#2a3038",
@@ -77,7 +93,7 @@ class StreamGUISlotWidgetsMixin:
             dropdown_fg_color="#2a3038",
             text_color="#d3dae3",
         )
-        model_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
+        model_combo.pack(side=tk.LEFT, padx=(0, 4))
         slot.combo = model_combo
 
         load_btn = ctk.CTkButton(
@@ -137,24 +153,10 @@ class StreamGUISlotWidgetsMixin:
         )
         slot.prior_toggle_btn.pack(side=tk.LEFT, padx=2)
 
-        delete_btn = ctk.CTkButton(
-            model_row_bottom,
-            text="🗑",
-            command=lambda s=slot: self.delete_model_slot(s),
-            fg_color="#e74c3c",
-            hover_color="#cc3a2c",
-            text_color="#d9dee5",
-            font=("Segoe UI", 10, "bold"),
-            width=32,
-            height=28,
-            corner_radius=8,
-        )
-        delete_btn.pack(side=tk.RIGHT, padx=(4, 0))
-
         input_row = ctk.CTkFrame(slot_frame, fg_color="transparent")
-        input_row.pack(fill=tk.X, padx=10, pady=(5, 0))
+        input_row.pack(fill=tk.X, padx=4, pady=(5, 0))
 
-        ctk.CTkLabel(input_row, text="Input:", text_color="#d3dae3", font=("Segoe UI", 8, "bold")).pack(side=tk.LEFT, padx=(0, 5))
+        ctk.CTkLabel(input_row, text="Input:", text_color="#d3dae3", font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT, padx=(0, 3))
 
         ctk.CTkRadioButton(
             input_row,
@@ -165,18 +167,18 @@ class StreamGUISlotWidgetsMixin:
             fg_color="#3f6f56",
             hover_color="#2f5a44",
             command=lambda s=slot: self.update_input_controls_obj(s),
-        ).pack(side=tk.LEFT, padx=5)
+        ).pack(side=tk.LEFT, padx=3)
 
         ctk.CTkRadioButton(
             input_row,
-            text="Audio File",
+            text="Audio",
             variable=slot.input_mode,
             value="audio",
             text_color="#d3dae3",
             fg_color="#3f6f56",
             hover_color="#2f5a44",
             command=lambda s=slot: self.update_input_controls_obj(s),
-        ).pack(side=tk.LEFT, padx=5)
+        ).pack(side=tk.LEFT, padx=3)
 
         ctk.CTkCheckBox(
             input_row,
@@ -187,7 +189,7 @@ class StreamGUISlotWidgetsMixin:
             hover_color="#2f5a44",
             border_color="#4a5563",
             command=lambda s=slot: (self.set_prior_usage_obj(s, s.use_prior.get(), warn_if_missing=True), self.update_input_controls_obj(s)),
-        ).pack(side=tk.LEFT, padx=10)
+        ).pack(side=tk.LEFT, padx=4)
 
         input_detail_row = ctk.CTkFrame(slot_frame, fg_color="transparent")
         input_detail_row.pack(fill=tk.X, padx=10, pady=(2, 0))

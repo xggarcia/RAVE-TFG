@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmd.exe /c \"winget install OpenJS.NodeJS --accept-source-agreements --accept-package-agreements\")",
+      "Bash(powershell.exe -Command \"winget install OpenJS.NodeJS --accept-source-agreements --accept-package-agreements; Write-Host ''Done: ''$LASTEXITCODE\")",
+      "Bash(export PATH=\"/c/Program Files/nodejs:$PATH\")",
+      "Bash(npm --version)",
+      "Bash(npx --version)"
+    ]
+  }
+}

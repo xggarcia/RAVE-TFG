@@ -30,6 +30,14 @@ class ModelSlot:
         self.latent_position = 0
         self.loop_audio = tk.BooleanVar(value=True)
         self.random_intensity = tk.DoubleVar(value=1.0)
+        self.density = tk.DoubleVar(value=1.0)
+        self.held_z = None
+        self.density_hold_frames = 0
+
+        # Phase interpolation control
+        self.phase_enabled = tk.BooleanVar(value=False)
+        self.phase_value = tk.DoubleVar(value=0.0)
+        self.phase_anchors = []
 
         # Prior generation parameters/state
         self.use_prior = tk.BooleanVar(value=False)

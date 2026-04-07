@@ -195,25 +195,25 @@ class StreamGUISlotWidgetsMixin:
         input_detail_row.pack(fill=tk.X, padx=10, pady=(2, 0))
 
         slot.intensity_frame = ctk.CTkFrame(input_detail_row, fg_color="transparent")
-        intensity_label_col = ctk.CTkFrame(slot.intensity_frame, fg_color="transparent")
-        intensity_label_col.pack(side=tk.LEFT, padx=(0, 8))
-        ctk.CTkLabel(intensity_label_col, text="Intensity", text_color="#d3dae3", width=64).pack(side=tk.TOP)
-        intensity_slider_col = ctk.CTkFrame(slot.intensity_frame, fg_color="transparent")
-        intensity_slider_col.pack(side=tk.LEFT)
+
+        intensity_row = ctk.CTkFrame(slot.intensity_frame, fg_color="transparent")
+        intensity_row.pack(fill=tk.X, pady=(0, 4))
+        ctk.CTkLabel(intensity_row, text="Intensity", text_color="#d3dae3", width=64).pack(side=tk.LEFT, padx=(0, 8))
         slot.intensity_value_label = ctk.CTkLabel(
-            intensity_slider_col,
+            intensity_row,
             text=f"{slot.random_intensity.get():.1f}",
             text_color="#f2f5f8",
             font=("Segoe UI", 12, "bold"),
+            width=36,
         )
         slot.intensity_scale = ctk.CTkSlider(
-            slot.intensity_frame,
+            intensity_row,
             from_=0.1,
             to=3.0,
             number_of_steps=29,
             variable=slot.random_intensity,
             command=self._bind_slider_value(slot.random_intensity, slot.intensity_value_label, decimals=1),
-            width=130,
+            width=100,
             height=18,
             corner_radius=10,
             button_corner_radius=10,
@@ -222,9 +222,40 @@ class StreamGUISlotWidgetsMixin:
             button_color="#d8dee6",
             button_hover_color="#eef2f7",
         )
-        slot.intensity_scale.pack(in_=intensity_slider_col, side=tk.TOP)
-        slot.intensity_value_label.pack(side=tk.TOP, pady=(3, 0))
+        slot.intensity_scale.pack(side=tk.LEFT)
+        slot.intensity_value_label.pack(side=tk.LEFT, padx=(6, 0))
         slot.intensity_scale.set(slot.random_intensity.get())
+
+        density_row = ctk.CTkFrame(slot.intensity_frame, fg_color="transparent")
+        density_row.pack(fill=tk.X, pady=(0, 2))
+        ctk.CTkLabel(density_row, text="Density", text_color="#d3dae3", width=64).pack(side=tk.LEFT, padx=(0, 8))
+        slot.density_value_label = ctk.CTkLabel(
+            density_row,
+            text=f"{slot.density.get():.2f}",
+            text_color="#f2f5f8",
+            font=("Segoe UI", 12, "bold"),
+            width=36,
+        )
+        slot.density_scale = ctk.CTkSlider(
+            density_row,
+            from_=0.05,
+            to=1.0,
+            number_of_steps=19,
+            variable=slot.density,
+            command=self._bind_slider_value(slot.density, slot.density_value_label, decimals=2),
+            width=100,
+            height=18,
+            corner_radius=10,
+            button_corner_radius=10,
+            fg_color="#1a1f26",
+            progress_color="#75839a",
+            button_color="#d8dee6",
+            button_hover_color="#eef2f7",
+        )
+        slot.density_scale.pack(side=tk.LEFT)
+        slot.density_value_label.pack(side=tk.LEFT, padx=(6, 0))
+        slot.density_scale.set(slot.density.get())
+
         slot.intensity_frame.pack(fill=tk.X, pady=(4, 0))
 
         slot.audio_frame = ctk.CTkFrame(input_detail_row, fg_color="transparent")
@@ -303,6 +334,8 @@ class StreamGUISlotWidgetsMixin:
         slot.prior_frame.pack(fill=tk.X, pady=(4, 0))
 
         self.update_input_controls_obj(slot)
+
+        self.create_phase_controls(slot_frame, slot)
 
         params_row = ctk.CTkFrame(slot_frame, fg_color="transparent")
         params_row.pack(fill=tk.BOTH, expand=True, padx=8, pady=(8, 0))

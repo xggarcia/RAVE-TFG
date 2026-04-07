@@ -1,4 +1,5 @@
 import queue
+import random
 import time
 
 import numpy as np
@@ -80,8 +81,23 @@ def generate_mixed_chunk(self, active_slots):
                     z = z * slot.temperature.get()
 
                 else:
-                    z = torch.randn(1, slot.latent_size, slot.latent_length)
-                    z = z * slot.random_intensity.get() * slot.temperature.get()
+                    density = slot.density.get()
+                    if slot.held_z is None or random.random() < density:
+                        z = torch.randn(1, slot.latent_size, slot.latent_length)
+                        z = z * slot.random_intensity.get() * slot.temperature.get()
+                        slot.held_z = z.clone()
+                        slot.density_hold_frames = 0
+                    else:
+                        slot.density_hold_frames += 1
+                        fade = max(0.0, 1.0 - slot.density_hold_frames * 0.12)
+                        z = slot.held_z * fade
+
+                if slot.phase_enabled.get() and len(slot.phase_anchors) >= 2:
+                    from .phase_control import interpolate_phase, apply_phase_bias
+                    blended_mean, blended_std = interpolate_phase(
+                        slot.phase_anchors, slot.phase_value.get()
+                    )
+                    z = apply_phase_bias(z, blended_mean, blended_std)
 
                 if slot.use_prior.get() and (slot.prior_model is not None or slot.embedded_prior_available):
                     try:

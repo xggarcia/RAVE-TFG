@@ -1,9 +1,11 @@
 import os
 import re
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, simpledialog
 
 import librosa
 import torch
+
+from src.streaming.phase_control import encode_phase_anchor, load_phase_anchors
 
 
 class StreamGUIModelIOMixin:
@@ -233,6 +235,19 @@ class StreamGUIModelIOMixin:
             else:
                 slot.prior_status_var.set("No Prior Loaded")
 
+            # Auto-detect phase anchors saved alongside the model
+            slot.phase_anchors.clear()
+            slot.phase_enabled.set(False)
+            slot.phase_value.set(0.0)
+            phases_path = os.path.splitext(full_path)[0] + "_phases.json"
+            if os.path.isfile(phases_path):
+                try:
+                    slot.phase_anchors = load_phase_anchors(phases_path)
+                    labels = " | ".join(a["label"] for a in slot.phase_anchors)
+                    self.log_status(f"  Phase anchors auto-loaded: {labels}")
+                except Exception as phase_err:
+                    self.log_status(f"  Phase anchors file found but failed to load: {phase_err}")
+
             self.log_status(f"Slot {slot.slot_id + 1}: Model loaded successfully")
             self.log_status(f"  Latent: {slot.latent_size}x{slot.latent_length}, Output: {slot.output_length} samples")
             if slot.model_sr is not None:
@@ -293,3 +308,47 @@ class StreamGUIModelIOMixin:
 
         self.update_all_dropdowns()
         self.log_status(f"Found {len(self.available_models)} available models")
+
+    def add_phase_anchor_for_slot(self, slot):
+        if not slot.is_loaded or slot.model is None:
+            messagebox.showwarning("Model Required", "Load a model before adding phase anchors.")
+            return
+
+        filename = filedialog.askopenfilename(
+            title=f"Select Phase Reference Audio for Slot {slot.slot_id + 1}",
+            filetypes=[("Audio Files", "*.wav *.mp3 *.flac *.ogg"), ("WAV Files", "*.wav"), ("All Files", "*.*")],
+            initialdir=os.path.join(os.getcwd(), "input_data"),
+        )
+
+        if not filename:
+            return
+
+        label = simpledialog.askstring(
+            "Phase Label",
+            f"Name for this phase anchor (e.g. 'Soft Rain', 'Storm'):",
+            parent=self.root,
+        )
+
+        if not label:
+            label = f"Phase {len(slot.phase_anchors) + 1}"
+
+        try:
+            self.log_status(f"Slot {slot.slot_id + 1}: Encoding phase anchor '{label}'...")
+            anchor = encode_phase_anchor(slot.model, filename, self.sr.get())
+            anchor["label"] = label
+            slot.phase_anchors.append(anchor)
+
+            labels = " | ".join(a["label"] for a in slot.phase_anchors)
+            self.log_status(f"Slot {slot.slot_id + 1}: Phase anchors [{labels}]")
+            self.update_input_controls_obj(slot)
+
+        except Exception as e:
+            messagebox.showerror("Phase Anchor Error", f"Failed to encode phase anchor:\n{str(e)}")
+            self.log_status(f"Slot {slot.slot_id + 1}: Phase anchor failed - {str(e)}")
+
+    def clear_phase_anchors_for_slot(self, slot):
+        slot.phase_anchors.clear()
+        slot.phase_value.set(0.0)
+        slot.phase_enabled.set(False)
+        self.log_status(f"Slot {slot.slot_id + 1}: Phase anchors cleared")
+        self.update_input_controls_obj(slot)

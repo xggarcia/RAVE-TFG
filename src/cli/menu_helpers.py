@@ -14,6 +14,8 @@ class MenuContext:
         workflow_fn,
         clean_fn,
         train_prior_fn,
+        phase_train_fn=None,
+        generate_anchors_fn=None,
     ):
         self.preprocess_fn = preprocess_fn
         self.train_fn = train_fn
@@ -23,6 +25,8 @@ class MenuContext:
         self.workflow_fn = workflow_fn
         self.clean_fn = clean_fn
         self.train_prior_fn = train_prior_fn
+        self.phase_train_fn = phase_train_fn
+        self.generate_anchors_fn = generate_anchors_fn
 
     def ask_choice(self, prompt, valid_choices):
         while True:

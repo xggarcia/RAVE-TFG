@@ -54,6 +54,21 @@ def build_parser():
     )
     train_prior_parser.add_argument("--output", default="models/user_model/prior", help="Output path for prior (default: models/user_model/prior)")
 
+    phase_train_parser = subparsers.add_parser("phase_train", help="Phase-aware training: train + generate phase anchors")
+    phase_train_parser.add_argument("audio_base", help="Base folder with phase subfolders (e.g. soft_rain/, rain/, storm/)")
+    phase_train_parser.add_argument("--name", default="my_phase_model", help="Model name (default: my_phase_model)")
+    phase_train_parser.add_argument("--config", default="v2_small", help="Architecture config (default: v2_small)")
+    phase_train_parser.add_argument("--channels", type=int, default=1, help="Number of audio channels (default: 1)")
+    phase_train_parser.add_argument("--val-every", type=int, default=1000, help="Checkpoint every N steps (default: 1000)")
+    phase_train_parser.add_argument("--max-steps", type=int, default=6000000, help="Max training steps (default: 6000000)")
+    phase_train_parser.add_argument("--batch-size", type=int, default=8, help="Batch size (default: 8)")
+    phase_train_parser.add_argument("--phases", help="Comma-separated phase order (default: alphabetical)")
+
+    gen_anchors_parser = subparsers.add_parser("gen_anchors", help="Generate phase anchors for an existing model")
+    gen_anchors_parser.add_argument("--model", required=True, help="Path to exported .ts model")
+    gen_anchors_parser.add_argument("--audio-base", required=True, help="Base folder with phase subfolders")
+    gen_anchors_parser.add_argument("--phases", help="Comma-separated phase order (default: alphabetical)")
+
     return parser
 
 
@@ -129,4 +144,29 @@ def run_command(args):
             prior_name=args.name,
             config=args.config,
             output_path=args.output,
+        )
+
+    elif args.command == "phase_train":
+        from src.phase_workflow import phase_train_workflow
+
+        phase_labels = [l.strip() for l in args.phases.split(",")] if args.phases else None
+        phase_train_workflow(
+            audio_base_path=args.audio_base,
+            phase_labels=phase_labels,
+            model_name=args.name,
+            config=args.config,
+            channels=args.channels,
+            val_every=args.val_every,
+            max_steps=args.max_steps,
+            batch_size=args.batch_size,
+        )
+
+    elif args.command == "gen_anchors":
+        from src.phase_workflow import generate_anchors_only
+
+        phase_labels = [l.strip() for l in args.phases.split(",")] if args.phases else None
+        generate_anchors_only(
+            model_path=args.model,
+            audio_base_path=args.audio_base,
+            phase_labels=phase_labels,
         )

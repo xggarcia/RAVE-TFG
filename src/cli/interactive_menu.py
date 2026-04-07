@@ -1,6 +1,7 @@
 from src.clean import CleanUserData
 from src.export import ExportModel
 from src.generate import UseModel
+from src.phase_workflow import phase_train_workflow, generate_anchors_only
 from src.preprocess import PreprocessDataset
 from src.stream_gui import launch_gui
 from src.train import TrainModel
@@ -23,6 +24,8 @@ def _build_menu_context():
         workflow_fn=train_workflow,
         clean_fn=CleanUserData,
         train_prior_fn=TrainPrior,
+        phase_train_fn=phase_train_workflow,
+        generate_anchors_fn=generate_anchors_only,
     )
 
 

@@ -188,6 +188,82 @@ def data_training_steps_menu(ctx):
             return "HOME"
 
 
+def run_phase_training(ctx):
+    print("\n--- Phase-Aware Training ---")
+    print("[*] Train a model on phase-organized audio for phase interpolation.")
+    print("    Organize your audio in subfolders by phase, e.g.:")
+    print("      input_data/user_data/soft_rain/")
+    print("      input_data/user_data/rain/")
+    print("      input_data/user_data/storm/")
+    print("    Subfolders are sorted alphabetically (phase order).")
+    mode = ctx.model_mode_prompt()
+    if mode == "9":
+        return
+
+    audio_base = input("Base folder with phase subfolders [input_data/user_data]: ").strip()
+    if not audio_base:
+        audio_base = "input_data/user_data"
+    if not os.path.exists(audio_base):
+        print(f"[X] Folder not found: {audio_base}")
+        ctx.pause()
+        return
+
+    if mode == "1":
+        model_name = input("Model name [my_phase_model]: ").strip() or "my_phase_model"
+        ctx.phase_train_fn(audio_base_path=audio_base, model_name=model_name)
+        ctx.pause()
+        return
+
+    model_name = input("Model name [my_phase_model]: ").strip() or "my_phase_model"
+    config = input("Config [v2_small/v2/v3] [v2_small]: ").strip() or "v2_small"
+    channels = ctx.ask_int("Channels [1]: ", 1)
+    val_every = ctx.ask_int("Validation every N steps [1000]: ", 1000)
+    max_steps = ctx.ask_int("Max steps [6000000]: ", 6000000)
+    batch_size = ctx.ask_int("Batch size [8]: ", 8)
+
+    custom_order = input("Custom phase order (comma-separated folder names, or empty for alphabetical): ").strip()
+    phase_labels = [l.strip() for l in custom_order.split(",") if l.strip()] if custom_order else None
+
+    ctx.phase_train_fn(
+        audio_base_path=audio_base,
+        phase_labels=phase_labels,
+        model_name=model_name,
+        config=config,
+        channels=channels,
+        val_every=val_every,
+        max_steps=max_steps,
+        batch_size=batch_size,
+    )
+    ctx.pause()
+
+
+def run_generate_anchors(ctx):
+    print("\n--- Generate Phase Anchors for Existing Model ---")
+    print("[*] Create phase anchors from an already-trained model.")
+
+    model_path = ctx.pick_model_path(default_demo=False)
+    if not model_path or not os.path.exists(model_path):
+        print("[X] Model not found.")
+        ctx.pause()
+        return
+
+    audio_base = input("Base folder with phase subfolders: ").strip()
+    if not audio_base or not os.path.exists(audio_base):
+        print("[X] Folder not found.")
+        ctx.pause()
+        return
+
+    custom_order = input("Custom phase order (comma-separated, or empty for alphabetical): ").strip()
+    phase_labels = [l.strip() for l in custom_order.split(",") if l.strip()] if custom_order else None
+
+    ctx.generate_anchors_fn(
+        model_path=model_path,
+        audio_base_path=audio_base,
+        phase_labels=phase_labels,
+    )
+    ctx.pause()
+
+
 def data_training_menu(ctx):
     while True:
         print("\n" + "=" * 60)
@@ -196,10 +272,12 @@ def data_training_menu(ctx):
         print("  1) Full workflow (recommended)")
         print("  2) Step-by-step tools")
         print("  3) Train prior (advanced)")
+        print("  4) Phase-aware training")
+        print("  5) Generate phase anchors (existing model)")
         print("  8) Back")
         print("  9) Home")
 
-        choice = ctx.ask_choice("\nChoose: ", {"1", "2", "3", "8", "9"})
+        choice = ctx.ask_choice("\nChoose: ", {"1", "2", "3", "4", "5", "8", "9"})
         if choice == "1":
             run_full_workflow(ctx)
         elif choice == "2":
@@ -208,6 +286,10 @@ def data_training_menu(ctx):
                 return "HOME"
         elif choice == "3":
             run_train_prior(ctx)
+        elif choice == "4":
+            run_phase_training(ctx)
+        elif choice == "5":
+            run_generate_anchors(ctx)
         elif choice == "8":
             return "BACK"
         elif choice == "9":

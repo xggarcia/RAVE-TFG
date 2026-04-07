@@ -117,6 +117,9 @@ class StreamGUISlotsMixin:
         if hasattr(slot, "source_temp_slider"):
             slot.source_temp_slider.configure(state="normal" if source_temp_enabled else "disabled")
 
+        if hasattr(self, "_update_phase_ui"):
+            self._update_phase_ui(slot)
+
     def update_input_controls(self, slot_id):
         slot = self.model_slots[slot_id]
         self.update_input_controls_obj(slot)

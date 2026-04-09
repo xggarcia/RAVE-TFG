@@ -102,6 +102,8 @@ RAVE-TFG/
 
 Where to put your files:
 - Put your training audio in input_data/user_data.
+- Dataset-creation query CSVs can be stored in database/database_creation/demo or database/database_creation/user.
+- Selected IDs CSVs are stored in database/database_download/user.
 - User checkpoints are created in models/user_model/checkpoints.
 - Exported TorchScript models are created in models/user_model/exported_model.
 - Generated WAV files are written to outputs.
@@ -177,6 +179,7 @@ Menu options:
   - Train model
   - Export model
   - Train prior (advanced)
+  - Dataset creation
 - Maintenance:
   - Clean user data
   - Help / About
@@ -206,6 +209,67 @@ Available commands:
 - stream
 - train_prior
 - clean
+
+## Dataset Creation (Freesound)
+
+The repository now includes a full dataset-creation pipeline for Freesound with interactive curation.
+
+Menu path:
+- Run python main.py
+- Select Data & Training
+- Select Dataset creation
+
+Dataset creation submenu options:
+- DO ALL (first download -> select -> final download)
+- First download only (download all preview candidates from query CSV)
+- Select only (review previews and save selected IDs CSV)
+- Final download only (download audio from selected IDs CSV)
+
+Each option asks for source and destination paths at runtime.
+
+### Input CSV format for first download
+
+Expected columns:
+- queryText
+- API_Key
+- outputDir
+- topNResults
+- duration
+- tag
+- featureExt
+- descriptors
+
+Example row:
+
+```csv
+queryText,API_Key,outputDir,topNResults,duration,tag,featureExt,descriptors
+cello,,descSounds,10,"(0,3)","single-note;acoustic",.json,
+```
+
+Notes:
+- API_Key can be blank if FREESOUND_API_KEY exists in .env.
+- tag supports multiple values separated by comma, semicolon, or pipe.
+- Blank optional fields use defaults.
+
+### Selected IDs CSV format
+
+Expected header:
+
+```csv
+sound_id
+358240
+358268
+```
+
+This CSV is used by the Final download only step.
+
+### Folder behavior in DO ALL
+
+- Final audio is saved in input_data/user_data/queryText.
+- If that folder already exists, a unique suffix is added: queryText_01, queryText_02, etc.
+- Selected IDs CSV is saved in database/database_download/user/queryText.csv.
+- If that CSV name already exists, a unique suffix is added: queryText_01.csv, queryText_02.csv, etc.
+- Temporary preview downloads are cleaned after the workflow.
 
 ## Commands Reference
 
@@ -300,6 +364,11 @@ Deletes user-generated data after double confirmation:
 - models/user_model/checkpoints/
 - models/user_model/exported_model/
 - outputs/
+- input_data/user_data/
+- database/database_download/user/
+
+Notes:
+- .gitkeep files are preserved during cleaning.
 
 ## Real-Time Streaming Guide
 

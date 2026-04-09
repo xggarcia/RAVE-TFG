@@ -26,6 +26,11 @@ venv/
 ENV/
 env/
 
+# Local secrets
+.env
+.env.*
+!.env.example
+
 # Jupyter Notebook
 .ipynb_checkpoints
 *.ipynb_checkpoints/

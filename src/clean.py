@@ -21,12 +21,20 @@ def CleanUserData():
         ("models/user_model/checkpoints", "Training checkpoints"),
         ("models/user_model/exported_model", "Exported models"),
         ("outputs", "Generated outputs"),
+        ("descSounds", "Temporary Freesound preview downloads"),
+        ("input_data/user_data", "Downloaded user dataset audio"),
+        ("database/database_download/user", "User-selected sound ID CSV files"),
     ]
+    # These directories are temporary and should be removed entirely.
+    delete_entire_dirs = {"descSounds"}
     
     # Check what exists (exclude .gitkeep files from count)
     existing_dirs = []
     for dir_path, description in dirs_to_clean:
         if os.path.exists(dir_path):
+            if dir_path in delete_entire_dirs:
+                existing_dirs.append((dir_path, description))
+                continue
             contents = [f for f in os.listdir(dir_path) if f != '.gitkeep']
             if contents:
                 existing_dirs.append((dir_path, description))
@@ -71,6 +79,11 @@ def CleanUserData():
     
     for dir_path, description in existing_dirs:
         try:
+            if dir_path in delete_entire_dirs:
+                shutil.rmtree(dir_path, ignore_errors=True)
+                print(f"  [OK] Deleted folder: {dir_path}")
+                continue
+
             # Remove all contents but keep the directory and .gitkeep files
             for item in os.listdir(dir_path):
                 if item == '.gitkeep':

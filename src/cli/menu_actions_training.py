@@ -1,4 +1,196 @@
 import os
+from pathlib import Path
+
+
+def run_dataset_do_all(ctx):
+    print("\n--- Dataset Creation: DO ALL ---")
+    csv_path = input("Query CSV path: ").strip()
+    if not csv_path or not os.path.exists(csv_path):
+        print("[X] Invalid query CSV path.")
+        ctx.pause()
+        return
+
+    temp_preview_root = input("Temporary preview folder [descSounds]: ").strip() or "descSounds"
+    selected_csv_dir = input("Selected IDs CSV output folder [database/database_download/user]: ").strip() or "database/database_download/user"
+    final_root = input("Final audio output root [input_data/user_data]: ").strip() or "input_data/user_data"
+
+    try:
+        from src.database_creation.create_database import run_create_database_workflow
+        from src.database_creation.download_csv import _load_dotenv
+    except ModuleNotFoundError:
+        from database_creation.create_database import run_create_database_workflow
+        from database_creation.download_csv import _load_dotenv
+
+    _load_dotenv()
+    run_create_database_workflow(
+        jobs_csv_path=Path(csv_path),
+        selected_csv_dir=Path(selected_csv_dir),
+        final_root=Path(final_root),
+        temp_preview_root=Path(temp_preview_root),
+    )
+    ctx.pause()
+
+
+def run_dataset_first_download_only(ctx):
+    print("\n--- Dataset Creation: FIRST DOWNLOAD ONLY ---")
+    csv_path = input("Query CSV path: ").strip()
+    if not csv_path or not os.path.exists(csv_path):
+        print("[X] Invalid query CSV path.")
+        ctx.pause()
+        return
+
+    temp_preview_root = input("Folder to save all preview candidates [descSounds]: ").strip() or "descSounds"
+
+    try:
+        from dataclasses import replace
+        from pathlib import Path
+
+        from src.database_creation.download_csv import _load_dotenv
+        from src.database_creation.first_download_freesound import download_sounds_freesound, read_jobs_from_csv
+    except ModuleNotFoundError:
+        from dataclasses import replace
+        from pathlib import Path
+
+        from database_creation.download_csv import _load_dotenv
+        from database_creation.first_download_freesound import download_sounds_freesound, read_jobs_from_csv
+
+    _load_dotenv()
+
+    try:
+        jobs = read_jobs_from_csv(Path(csv_path))
+    except Exception as exc:
+        print(f"[X] Could not read jobs CSV: {exc}")
+        ctx.pause()
+        return
+
+    if not jobs:
+        print("No valid query jobs found in CSV.")
+        ctx.pause()
+        return
+
+    jobs = [replace(job, output_dir=Path(temp_preview_root)) for job in jobs]
+    total_saved = 0
+    for idx, job in enumerate(jobs, start=1):
+        print(f"\n[{idx}/{len(jobs)}] First download for query: {job.query_text}")
+        total_saved += download_sounds_freesound(job)
+
+    print(f"\n[OK] First download completed. Saved {total_saved} preview candidate(s).")
+    ctx.pause()
+
+
+def run_dataset_select_only(ctx):
+    print("\n--- Dataset Creation: SELECT FROM DOWNLOADED PREVIEWS ---")
+    preview_root = input("Folder containing preview candidates [descSounds]: ").strip() or "descSounds"
+    if not os.path.exists(preview_root):
+        print("[X] Preview folder does not exist.")
+        ctx.pause()
+        return
+
+    output_dir = input("Folder to save selected IDs CSV [database/database_download/user]: ").strip() or "database/database_download/user"
+    csv_name = input("Selected IDs CSV filename [selected_sound_ids.csv]: ").strip() or "selected_sound_ids.csv"
+
+    try:
+        from pathlib import Path
+
+        from src.database_creation.create_csv import gather_candidates, run_selection, write_selected_ids_csv
+    except ModuleNotFoundError:
+        from pathlib import Path
+
+        from database_creation.create_csv import gather_candidates, run_selection, write_selected_ids_csv
+
+    candidates = gather_candidates(Path(preview_root))
+    if not candidates:
+        print("No playable preview candidates found.")
+        ctx.pause()
+        return
+
+    selected_ids = run_selection(candidates)
+    output_csv = Path(output_dir) / csv_name
+    write_selected_ids_csv(selected_ids, output_csv)
+    print(f"\n[OK] Saved {len(selected_ids)} selected ID(s) to: {output_csv}")
+    ctx.pause()
+
+
+def run_dataset_download_only(ctx):
+    print("\n--- Dataset Creation: DOWNLOAD SELECTED IDS ---")
+    selected_csv_path = input("Selected IDs CSV path: ").strip()
+    if not selected_csv_path or not os.path.exists(selected_csv_path):
+        print("[X] Invalid selected IDs CSV path.")
+        ctx.pause()
+        return
+
+    final_output_dir = input("Final audio output folder: ").strip()
+    if not final_output_dir:
+        print("[X] Output folder path is required.")
+        ctx.pause()
+        return
+
+    try:
+        from pathlib import Path
+
+        from src.database_creation.download_csv import _load_dotenv, _read_sound_ids, download_sound_by_id
+    except ModuleNotFoundError:
+        from pathlib import Path
+
+        from database_creation.download_csv import _load_dotenv, _read_sound_ids, download_sound_by_id
+
+    _load_dotenv()
+    api_key = os.getenv("FREESOUND_API_KEY", "").strip()
+    if not api_key:
+        print("[X] Missing FREESOUND_API_KEY in environment/.env")
+        ctx.pause()
+        return
+
+    try:
+        sound_ids = _read_sound_ids(Path(selected_csv_path))
+    except Exception as exc:
+        print(f"[X] Could not read selected IDs CSV: {exc}")
+        ctx.pause()
+        return
+
+    output_dir = Path(final_output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if not sound_ids:
+        print("No sound IDs found in selected CSV.")
+        ctx.pause()
+        return
+
+    success = 0
+    for idx, sound_id in enumerate(sound_ids, start=1):
+        print(f"[{idx}/{len(sound_ids)}] Downloading {sound_id}")
+        if download_sound_by_id(sound_id, api_key, output_dir, skip_existing=True):
+            success += 1
+
+    print(f"\n[OK] Downloaded {success}/{len(sound_ids)} selected sound(s) into: {output_dir}")
+    ctx.pause()
+
+
+def dataset_creation_menu(ctx):
+    while True:
+        print("\n" + "=" * 60)
+        print("  Data & Training - Dataset Creation")
+        print("=" * 60)
+        print("  1) DO ALL (first download -> select -> final download)")
+        print("  2) First download only (all preview candidates)")
+        print("  3) Select only (choose what to keep from previews)")
+        print("  4) Final download only (from selected IDs CSV)")
+        print("  8) Back")
+        print("  9) Home")
+
+        choice = ctx.ask_choice("\nChoose: ", {"1", "2", "3", "4", "8", "9"})
+        if choice == "1":
+            run_dataset_do_all(ctx)
+        elif choice == "2":
+            run_dataset_first_download_only(ctx)
+        elif choice == "3":
+            run_dataset_select_only(ctx)
+        elif choice == "4":
+            run_dataset_download_only(ctx)
+        elif choice == "8":
+            return "BACK"
+        elif choice == "9":
+            return "HOME"
 
 
 def run_full_workflow(ctx):
@@ -274,10 +466,11 @@ def data_training_menu(ctx):
         print("  3) Train prior (advanced)")
         print("  4) Phase-aware training")
         print("  5) Generate phase anchors (existing model)")
+        print("  6) Dataset creation")
         print("  8) Back")
         print("  9) Home")
 
-        choice = ctx.ask_choice("\nChoose: ", {"1", "2", "3", "4", "5", "8", "9"})
+        choice = ctx.ask_choice("\nChoose: ", {"1", "2", "3", "4", "5", "6", "8", "9"})
         if choice == "1":
             run_full_workflow(ctx)
         elif choice == "2":
@@ -290,6 +483,10 @@ def data_training_menu(ctx):
             run_phase_training(ctx)
         elif choice == "5":
             run_generate_anchors(ctx)
+        elif choice == "6":
+            nested = dataset_creation_menu(ctx)
+            if nested == "HOME":
+                return "HOME"
         elif choice == "8":
             return "BACK"
         elif choice == "9":

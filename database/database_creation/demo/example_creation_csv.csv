@@ -1,0 +1,4 @@
+queryText,API_Key,outputDir,topNResults,duration,tag,featureExt,descriptors
+cello,,descSounds,2,"(0,3)",single-note,.json,all
+guitar,,descSounds,2,"(0,3)",single-note,.json,all
+piano,,descSounds,2,"(0,3)",single-note,.json,all

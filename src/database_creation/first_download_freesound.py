@@ -39,6 +39,13 @@ DEFAULT_DESCRIPTORS = [
 	"mfcc",
 ]
 
+_LICENSE_MAP: dict[str, str] = {
+	"cc0": "Creative Commons 0",
+	"attribution": "Attribution",
+	"noncommercial": "Attribution Noncommercial",
+	"sampling": "Sampling+",
+}
+
 
 def _load_dotenv(dotenv_path: Path = Path(".env")) -> None:
 	"""Load KEY=VALUE pairs from a .env file into os.environ if missing."""
@@ -67,6 +74,7 @@ class DownloadJob:
 	tags: Optional[list[str]] = None
 	feature_ext: str = ".json"
 	descriptors: Optional[list[str]] = None
+	license_filter: Optional[str] = None
 
 
 def _clean_text(value: Optional[str]) -> str:
@@ -122,13 +130,24 @@ def _headers(api_key: str) -> dict[str, str]:
 	return {"Authorization": f"Token {api_key}"}
 
 
-def _build_filter(duration: Optional[tuple[float, float]], tags: Optional[Iterable[str]]) -> str:
+def _build_filter(
+	duration: Optional[tuple[float, float]],
+	tags: Optional[Iterable[str]],
+	license_filter: Optional[str] = None,
+) -> str:
 	parts: list[str] = []
 	if duration is not None:
 		parts.append(f"duration:[{duration[0]} TO {duration[1]}]")
 	if tags:
 		# Freesound filter syntax supports space-separated clauses.
 		parts.extend(f"tag:{tag}" for tag in tags if tag)
+	if license_filter:
+		keys = [k.strip().lower() for k in license_filter.split("|") if k.strip()]
+		license_clauses = [f'license:"{_LICENSE_MAP[k]}"' for k in keys if k in _LICENSE_MAP]
+		if len(license_clauses) == 1:
+			parts.append(license_clauses[0])
+		elif len(license_clauses) > 1:
+			parts.append("(" + " OR ".join(license_clauses) + ")")
 	return " ".join(parts)
 
 
@@ -183,7 +202,7 @@ def download_sounds_freesound(job: DownloadJob) -> int:
 		return 0
 
 	descriptors = job.descriptors or DEFAULT_DESCRIPTORS
-	filter_expr = _build_filter(job.duration, job.tags)
+	filter_expr = _build_filter(job.duration, job.tags, job.license_filter)
 
 	query_output_dir = job.output_dir / job.query_text
 	if query_output_dir.exists():
@@ -301,6 +320,7 @@ def read_jobs_from_csv(csv_path: Path) -> list[DownloadJob]:
 			tags = _parse_multi_values(row.get("tag"))
 			feature_ext = _normalize_feature_ext(row.get("featureExt"))
 			descriptors = _parse_multi_values(row.get("descriptors"))
+			license_filter = _clean_text(row.get("license")) or None
 
 			if not query_text:
 				print(f"Row {row_index}: empty queryText, skipping.")
@@ -316,6 +336,7 @@ def read_jobs_from_csv(csv_path: Path) -> list[DownloadJob]:
 					tags=tags,
 					feature_ext=feature_ext,
 					descriptors=descriptors,
+					license_filter=license_filter,
 				)
 			)
 

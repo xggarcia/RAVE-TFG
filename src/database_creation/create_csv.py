@@ -57,11 +57,10 @@ def gather_candidates(download_root: Path) -> list[SoundCandidate]:
 
 
 def _play_audio_internal(audio_path: Path) -> bool:
-	"""Play audio using soundfile/sounddevice. Returns True when successful."""
+	"""Start audio playback non-blocking. Returns True when successful."""
 	try:
 		data, sample_rate = sf.read(str(audio_path), dtype="float32", always_2d=False)
 		sd.play(data, sample_rate)
-		sd.wait()
 		return True
 	except Exception:
 		return False
@@ -108,6 +107,7 @@ def run_selection(candidates: list[SoundCandidate]) -> list[str]:
 
 		while True:
 			action = ask_user_action()
+			sd.stop()
 			if action == "r":
 				play_audio(candidate.audio_path)
 				continue

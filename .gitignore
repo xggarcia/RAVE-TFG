@@ -70,5 +70,11 @@ models/user_model/**/*.pt
 models/user_model/**/*.pth
 models/user_model/**/*.ckpt
 
+# User data folders (local audio, downloads, selections)
+database/database_creation/user/
+database/database_download/user/
+input_data/user_data/
+models/user_model/
+
 # Local development tooling scripts
 tools/

@@ -166,6 +166,61 @@ def run_dataset_download_only(ctx):
     ctx.pause()
 
 
+def run_normalize_volume(ctx):
+    print("\n--- Normalize Volume (single folder) ---")
+    folder = input("Folder containing audio files: ").strip()
+    if not folder or not os.path.exists(folder):
+        print("[X] Folder not found.")
+        ctx.pause()
+        return
+
+    target_db_str = input("Target RMS in dBFS [-20.0]: ").strip()
+    try:
+        target_db = float(target_db_str) if target_db_str else -20.0
+    except ValueError:
+        print("[X] Invalid dB value.")
+        ctx.pause()
+        return
+
+    try:
+        from src.database_creation.normalize_volume import normalize_directory
+    except ModuleNotFoundError:
+        from database_creation.normalize_volume import normalize_directory
+
+    from pathlib import Path
+    print(f"\nNormalizing audio in: {folder}  (target: {target_db:.1f} dBFS)")
+    ok, total = normalize_directory(Path(folder), target_db)
+    if total == 0:
+        print("[!] No audio files found.")
+    else:
+        print(f"\n[OK] Normalized {ok}/{total} file(s).")
+    ctx.pause()
+
+
+def run_merge_selected_csv(ctx):
+    print("\n--- Merge Selected IDs into Combined CSV ---")
+    input_dir = input("Folder with per-query selected-IDs CSVs [database/database_download/user]: ").strip()
+    input_dir = input_dir or "database/database_download/user"
+    if not os.path.isdir(input_dir):
+        print("[X] Folder not found.")
+        ctx.pause()
+        return
+
+    output_path = input("Output CSV path [database/database_download/user/combined_ids.csv]: ").strip()
+    output_path = output_path or "database/database_download/user/combined_ids.csv"
+
+    try:
+        from src.database_creation.merge_selected_csv import merge_selected_csvs
+    except ModuleNotFoundError:
+        from database_creation.merge_selected_csv import merge_selected_csvs
+
+    from pathlib import Path
+    total = merge_selected_csvs(Path(input_dir), Path(output_path))
+    if total:
+        print(f"\n[OK] Written {total} sound ID(s) to: {output_path}")
+    ctx.pause()
+
+
 def dataset_creation_menu(ctx):
     while True:
         print("\n" + "=" * 60)
@@ -175,10 +230,12 @@ def dataset_creation_menu(ctx):
         print("  2) First download only (all preview candidates)")
         print("  3) Select only (choose what to keep from previews)")
         print("  4) Final download only (from selected IDs CSV)")
+        print("  5) Normalize volume (single folder)")
+        print("  6) Merge selected IDs into combined CSV")
         print("  8) Back")
         print("  9) Home")
 
-        choice = ctx.ask_choice("\nChoose: ", {"1", "2", "3", "4", "8", "9"})
+        choice = ctx.ask_choice("\nChoose: ", {"1", "2", "3", "4", "5", "6", "8", "9"})
         if choice == "1":
             run_dataset_do_all(ctx)
         elif choice == "2":
@@ -187,6 +244,10 @@ def dataset_creation_menu(ctx):
             run_dataset_select_only(ctx)
         elif choice == "4":
             run_dataset_download_only(ctx)
+        elif choice == "5":
+            run_normalize_volume(ctx)
+        elif choice == "6":
+            run_merge_selected_csv(ctx)
         elif choice == "8":
             return "BACK"
         elif choice == "9":

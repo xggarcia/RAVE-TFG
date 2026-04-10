@@ -1,0 +1,7 @@
+queryText,API_Key,outputDir,topNResults,duration,tag,featureExt,descriptors,license
+moderate rain,,rainSounds,30,"(30,600)",rain,.json,all,cc0|attribution
+heavy rain,,rainSounds,30,"(30,600)",rain,.json,all,cc0|attribution
+rain ambience outdoor,,rainSounds,25,"(30,600)",rain,.json,all,cc0|attribution
+rainfall field recording,,rainSounds,25,"(30,600)",rain|field-recording,.json,all,cc0|attribution
+steady rain,,rainSounds,20,"(30,600)",rain,.json,all,cc0|attribution
+strong rain,,rainSounds,20,"(30,600)",rain,.json,all,cc0|attribution

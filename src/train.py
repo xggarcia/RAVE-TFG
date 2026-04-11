@@ -6,6 +6,20 @@ import os
 import subprocess
 
 
+def _detect_gpu_flag():
+    # rave's own setup_gpu() uses GPUtil with a 5% VRAM threshold, which
+    # excludes GPUs already used by the Windows desktop compositor. We pick
+    # the first CUDA device ourselves so training always lands on the GPU
+    # when one exists, and falls back to CPU (--gpu -1) otherwise.
+    try:
+        import torch
+    except ImportError:
+        return ["-1"]
+    if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+        return ["0"]
+    return ["-1"]
+
+
 def TrainModel(
     name="my_model",
     config="v2_small",
@@ -19,7 +33,7 @@ def TrainModel(
 ):
     """
     Train a RAVE model.
-    
+
     Args:
         name: Model name
         config: Architecture configuration (v2_small, v2, v3, etc.)
@@ -30,14 +44,14 @@ def TrainModel(
         save_every: Save checkpoint frequency (steps)
         max_steps: Maximum training steps
         batch_size: Batch size for training
-    
+
     Returns:
         Path to output directory
     """
-    
+
     # Create output directory if it doesn't exist
     os.makedirs(out_path, exist_ok=True)
-    
+
     # Build command
     cmd = [
         "rave",
@@ -50,8 +64,10 @@ def TrainModel(
         "--val_every", str(val_every),
         "--save_every", str(save_every),
         "--max_steps", str(max_steps),
-        "--batch", str(batch_size)
+        "--batch", str(batch_size),
     ]
+    for gpu_id in _detect_gpu_flag():
+        cmd.extend(["--gpu", gpu_id])
     
     print(f"Training model: {name}")
     print(f"Config: {config}")

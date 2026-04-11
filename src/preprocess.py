@@ -6,16 +6,18 @@ import os
 import subprocess
 
 
-def PreprocessDataset(audio_path, channels=1, lazy=True, max_db_size=10):
+def PreprocessDataset(audio_path, channels=1, lazy=False, max_db_size=10):
     """
     Preprocess the dataset.
-    
+
     Args:
         audio_path: Path to folder containing audio files
         channels: Number of audio channels (1=mono, 2=stereo)
-        lazy: Use lazy loading (recommended for large datasets)
+        lazy: If True, store only file paths and decode on-the-fly during
+            training (slower, especially on Windows). Defaults to False so
+            the dataset is fully decoded to int16 upfront for fast training.
         max_db_size: Maximum database size in GB
-    
+
     Returns:
         Path to preprocessed data directory
     """

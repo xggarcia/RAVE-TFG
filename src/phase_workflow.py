@@ -77,7 +77,7 @@ def phase_train_workflow(
     model_name="my_phase_model",
     config="v2_small",
     channels=1,
-    lazy=True,
+    lazy=False,
     max_db_size=10,
     val_every=1000,
     save_every=10000,

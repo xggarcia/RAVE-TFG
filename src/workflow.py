@@ -11,14 +11,15 @@ def train_workflow(
     audio_path,
     model_name="my_model",
     channels=1,
-    lazy=True,
+    lazy=False,
     max_db_size=10,
     config="v2_small",
     val_every=1000,
     save_every=10000,
     max_steps=6000000,
     batch_size=8,
-    streaming=True
+    streaming=True,
+    ckpt=None,
 ):
     """
     Complete training workflow: preprocess → train → export
@@ -58,7 +59,8 @@ def train_workflow(
         val_every=val_every,
         save_every=save_every,
         max_steps=max_steps,
-        batch_size=batch_size
+        batch_size=batch_size,
+        ckpt=ckpt,
     )
     
     # Step 3: Export

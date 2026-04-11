@@ -20,6 +20,32 @@ def _detect_gpu_flag():
     return ["-1"]
 
 
+def find_latest_run(out_path, name):
+    """Return the newest `<out_path>/<name>_<hash>` folder that contains
+    at least one .ckpt, or None if no such run exists."""
+    if not os.path.isdir(out_path):
+        return None
+    prefix = f"{name}_"
+    candidates = []
+    for entry in os.listdir(out_path):
+        if not entry.startswith(prefix):
+            continue
+        run_dir = os.path.join(out_path, entry)
+        if not os.path.isdir(run_dir):
+            continue
+        has_ckpt = False
+        for root, _, files in os.walk(run_dir):
+            if any(f.endswith(".ckpt") for f in files):
+                has_ckpt = True
+                break
+        if has_ckpt:
+            candidates.append((os.path.getmtime(run_dir), run_dir))
+    if not candidates:
+        return None
+    candidates.sort(reverse=True)
+    return candidates[0][1]
+
+
 def TrainModel(
     name="my_model",
     config="v2_small",
@@ -29,7 +55,8 @@ def TrainModel(
     val_every=1000,
     save_every=10000,
     max_steps=6000000,
-    batch_size=8
+    batch_size=8,
+    ckpt=None,
 ):
     """
     Train a RAVE model.
@@ -44,6 +71,10 @@ def TrainModel(
         save_every: Save checkpoint frequency (steps)
         max_steps: Maximum training steps
         batch_size: Batch size for training
+        ckpt: Checkpoint to resume from. Accepts:
+            - None: start a fresh run
+            - str: explicit path to a .ckpt file or a run folder
+            - True: auto-detect the latest run matching `name` under `out_path`
 
     Returns:
         Path to output directory
@@ -51,6 +82,14 @@ def TrainModel(
 
     # Create output directory if it doesn't exist
     os.makedirs(out_path, exist_ok=True)
+
+    resolved_ckpt = None
+    if ckpt is True:
+        resolved_ckpt = find_latest_run(out_path, name)
+        if resolved_ckpt is None:
+            print("[resume] No previous run found - starting fresh.")
+    elif isinstance(ckpt, str) and ckpt:
+        resolved_ckpt = ckpt
 
     # Build command
     cmd = [
@@ -68,17 +107,21 @@ def TrainModel(
     ]
     for gpu_id in _detect_gpu_flag():
         cmd.extend(["--gpu", gpu_id])
-    
+    if resolved_ckpt:
+        cmd.extend(["--ckpt", resolved_ckpt])
+
     print(f"Training model: {name}")
     print(f"Config: {config}")
     print(f"Dataset: {db_path}")
     print(f"Output: {out_path}")
     print(f"Checkpoint every: {val_every} steps")
     print(f"Save every: {save_every} steps")
+    if resolved_ckpt:
+        print(f"Resuming from: {resolved_ckpt}")
     print(f"Command: {' '.join(cmd)}")
     print()
-    
+
     subprocess.run(cmd, check=True)
-    
+
     print(f"Training completed!")
     return out_path

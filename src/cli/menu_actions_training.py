@@ -276,6 +276,14 @@ def run_full_workflow(ctx):
     channels = ctx.ask_int("Channels [1]: ", 1)
     val_every = ctx.ask_int("Validation every N steps [1000]: ", 1000)
     max_steps = ctx.ask_int("Max steps [6000000]: ", 6000000)
+    batch_size = ctx.ask_int("Batch size [8] (try 16/32 on 24GB+ GPUs): ", 8)
+
+    from src.train import find_latest_run
+    existing_run = find_latest_run("models/user_model/checkpoints", model_name)
+    resume = False
+    if existing_run:
+        print(f"[i] Found previous run: {existing_run}")
+        resume = ctx.ask_yes_no("Resume from latest checkpoint", default_yes=True)
 
     ctx.workflow_fn(
         audio_path=audio_path,
@@ -284,6 +292,8 @@ def run_full_workflow(ctx):
         channels=channels,
         val_every=val_every,
         max_steps=max_steps,
+        batch_size=batch_size,
+        ckpt=True if resume else None,
     )
     ctx.pause()
 
@@ -306,7 +316,7 @@ def run_preprocess(ctx):
         return
 
     channels = ctx.ask_int("Number of channels [1]: ", 1)
-    lazy = ctx.ask_yes_no("Enable lazy loading", default_yes=True)
+    lazy = ctx.ask_yes_no("Enable lazy loading (slower training, smaller DB)", default_yes=False)
     max_db_size = ctx.ask_int("Max DB size in GB [10]: ", 10)
     ctx.preprocess_fn(audio_path=audio_path, channels=channels, lazy=lazy, max_db_size=max_db_size)
     ctx.pause()
@@ -333,6 +343,13 @@ def run_train_model(ctx):
     max_steps = ctx.ask_int("Max steps [6000000]: ", 6000000)
     batch_size = ctx.ask_int("Batch size [8]: ", 8)
 
+    from src.train import find_latest_run
+    existing_run = find_latest_run("models/user_model/checkpoints", model_name)
+    resume = False
+    if existing_run:
+        print(f"[i] Found previous run: {existing_run}")
+        resume = ctx.ask_yes_no("Resume from latest checkpoint", default_yes=True)
+
     ctx.train_fn(
         name=model_name,
         config=config,
@@ -342,6 +359,7 @@ def run_train_model(ctx):
         save_every=save_every,
         max_steps=max_steps,
         batch_size=batch_size,
+        ckpt=True if resume else None,
     )
     ctx.pause()
 

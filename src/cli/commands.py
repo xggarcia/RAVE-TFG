@@ -9,7 +9,7 @@ def build_parser():
     preprocess_parser = subparsers.add_parser("preprocess", help="Preprocess audio dataset")
     preprocess_parser.add_argument("audio_path", help="Path to folder containing audio files")
     preprocess_parser.add_argument("--channels", type=int, default=1, help="Number of audio channels (default: 1)")
-    preprocess_parser.add_argument("--no-lazy", action="store_true", help="Disable lazy loading")
+    preprocess_parser.add_argument("--lazy", action="store_true", help="Enable lazy loading (slower training, smaller DB)")
     preprocess_parser.add_argument("--max-db-size", type=int, default=10, help="Max database size in GB (default: 10)")
 
     train_parser = subparsers.add_parser("train", help="Train a RAVE model")
@@ -80,7 +80,7 @@ def run_command(args):
         PreprocessDataset(
             audio_path=args.audio_path,
             channels=args.channels,
-            lazy=not args.no_lazy,
+            lazy=args.lazy,
             max_db_size=args.max_db_size,
         )
 

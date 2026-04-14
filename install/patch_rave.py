@@ -8,7 +8,12 @@ Fixes applied:
    `scipy.signal.windows` in scipy >= 1.12.
 2. `rave/pqmf.py`: `scipy.signal.firwin` removed the deprecated `nyq`
    keyword argument (replaced by `fs=2*nyq`) in scipy >= 1.12.
-3. `scripts/preprocess.py`: `multiprocessing.Pool()` spawned one worker per
+3. `rave/pqmf.py`: `scipy.signal.kaiserord` no longer accepts array-like
+   `width` in scipy >= 1.13; `kaiser_filter` passes `wc` straight from
+   `scipy.optimize.fmin`, which is a 1-element ndarray. We coerce it to a
+   Python float at the top of `kaiser_filter` so both scipy calls inside
+   (`kaiserord` and `firwin`) receive a plain scalar.
+4. `scripts/preprocess.py`: `multiprocessing.Pool()` spawned one worker per
    CPU core. On Windows each worker imports CUDA torch, which reserves
    several GB of virtual address space; with many cores this blows past the
    page file limit and crashes with `WinError 1455`. We cap the worker
@@ -60,6 +65,19 @@ def patch_pqmf(rave_dir):
     if old_firwin in content:
         content = content.replace(old_firwin, new_firwin)
         changes.append("firwin nyq->fs")
+
+    # Fix 3: scipy >= 1.13 `kaiserord` rejects array-like width, and the
+    # caller passes `wc` straight from `scipy.optimize.fmin` (a 1-element
+    # ndarray). Coerce to a Python float at the top of `kaiser_filter` so
+    # both scipy calls inside receive a plain scalar.
+    old_kaiser_body = "    N_, beta = kaiserord(atten, wc / np.pi)"
+    new_kaiser_body = (
+        "    wc = float(np.asarray(wc).reshape(-1)[0])\n"
+        "    N_, beta = kaiserord(atten, wc / np.pi)"
+    )
+    if old_kaiser_body in content and "float(np.asarray(wc)" not in content:
+        content = content.replace(old_kaiser_body, new_kaiser_body)
+        changes.append("kaiser_filter scalar coercion")
 
     if content == original:
         print("[patch] pqmf.py already patched or source differs, skipping.")

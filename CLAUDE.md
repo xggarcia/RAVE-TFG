@@ -29,3 +29,18 @@
 - NEVER hardcode API keys, secrets, or credentials in source files
 - NEVER commit .env files or any file containing secrets
 - Always validate user input at system boundaries
+
+## TFG Writing Rules
+
+These rules apply whenever writing or editing TFG document sections.
+
+- Write first in Spanish (Catalan/Spanish) for review; translate to English only after approval
+- Every factual claim must be backed by a verifiable external source (academic paper, official doc, etc.)
+- Provide all citation links in the text and in a references list at the end of each section
+- NEVER assume technical details about the project — if uncertain, ask before writing
+- Do not describe what the code "could do"; describe only what it actually does (verify in source)
+- Use present tense as primary verb tense; perfect tense is acceptable for completed work
+- Do not use passive voice
+- Each section must follow: Context/motivation → Objective → Methodology → Results/contributions
+- Keep citations in the format: [N] Author(s). (Year). Title. Source. URL
+- Approximately 250 words for the abstract; section length proportional to complexity

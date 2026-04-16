@@ -171,14 +171,14 @@ def _extract_preview_url(sound_payload: dict) -> Optional[str]:
 
 	# Freesound payloads can use either underscore or hyphen key styles.
 	return (
-		previews.get("preview_lq_mp3")
-		or previews.get("preview_hq_mp3")
-		or previews.get("preview-lq-mp3")
+		previews.get("preview_hq_mp3")
 		or previews.get("preview-hq-mp3")
-		or sound_payload.get("preview_lq_mp3")
+		or previews.get("preview_lq_mp3")
+		or previews.get("preview-lq-mp3")
 		or sound_payload.get("preview_hq_mp3")
-		or sound_payload.get("preview-lq-mp3")
 		or sound_payload.get("preview-hq-mp3")
+		or sound_payload.get("preview_lq_mp3")
+		or sound_payload.get("preview-lq-mp3")
 	)
 
 

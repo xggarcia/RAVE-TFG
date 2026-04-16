@@ -6,7 +6,8 @@ Flow per query row in input CSV:
 3) Save selected IDs CSV in database/database_download/user/
 4) Download selected sounds into input_data/user_data/<queryText>/
 5) Normalize volume of downloaded sounds to a consistent RMS level
-6) Remove temporary preview folder (for example descSounds/<queryText>/)
+6) Convert final files to WAV mono 44100 Hz PCM_16
+7) Remove temporary preview folder (for example descSounds/<queryText>/)
 """
 
 from __future__ import annotations
@@ -24,12 +25,14 @@ try:
 		read_jobs_from_csv,
 	)
 	from src.database_creation.normalize_volume import normalize_directory
+	from src.database_creation.convert_format import convert_directory
 except ModuleNotFoundError:
 	# Support direct execution: `python src/database_creation/create_database.py ...`
 	from create_csv import gather_candidates, run_selection, write_selected_ids_csv
 	from download_csv import _load_dotenv, download_sound_by_id
 	from first_download_freesound import download_sounds_freesound, read_jobs_from_csv
 	from normalize_volume import normalize_directory
+	from convert_format import convert_directory
 
 
 def _build_unique_csv_path(base_dir: Path, query_text: str) -> Path:
@@ -170,10 +173,20 @@ def run_create_database_workflow(
 			print(f"Normalizing volume in {final_query_dir} ...")
 			ok, n = normalize_directory(final_query_dir)
 			print(f"Normalized {ok}/{n} file(s).")
+
+			# 6) Convert all files to WAV mono 44100 Hz PCM_16.
+			print(f"Converting format in {final_query_dir} to WAV mono 44100 Hz PCM_16 ...")
+			ok_conv, n_conv = convert_directory(
+				root=final_query_dir,
+				target_sr=44100,
+				target_channels=1,
+				target_subtype="PCM_16",
+			)
+			print(f"Converted {ok_conv}/{n_conv} file(s).")
 		else:
 			print("No sounds selected for this query. Final download skipped.")
 
-		# 6) Remove temporary mid-download previews (descSounds/<queryText> style).
+		# 7) Remove temporary mid-download previews (descSounds/<queryText> style).
 		_cleanup_temp_query_folder(job.output_dir, job.query_text)
 		print(f"Removed temporary preview folder for query '{job.query_text}'")
 

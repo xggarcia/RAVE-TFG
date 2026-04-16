@@ -20,6 +20,10 @@ from typing import Optional
 
 import requests
 
+try:
+	from src.database_creation.freesound_auth import get_access_token, load_oauth2_credentials
+except ModuleNotFoundError:
+	from freesound_auth import get_access_token, load_oauth2_credentials
 
 FREESOUND_BASE_URL = "https://freesound.org/apiv2"
 
@@ -109,15 +113,19 @@ def _stream_download(url: str, headers: dict[str, str], output_path: Path) -> No
 def _preview_url_from_payload(payload: dict) -> Optional[str]:
 	previews = payload.get("previews") or {}
 	return (
-		previews.get("preview_lq_mp3")
-		or previews.get("preview_hq_mp3")
-		or previews.get("preview-lq-mp3")
+		previews.get("preview_hq_mp3")
 		or previews.get("preview-hq-mp3")
+		or previews.get("preview_lq_mp3")
+		or previews.get("preview-lq-mp3")
 	)
 
 
 def download_sound_by_id(sound_id: str, api_key: str, output_dir: Path, skip_existing: bool) -> bool:
-	"""Download one sound by id (original first, preview fallback)."""
+	"""Download one sound by id.
+
+	Tries the original file via OAuth2 Bearer token (full quality, any duration).
+	Falls back to HQ preview MP3 if OAuth2 is not configured or download fails.
+	"""
 	try:
 		sound_info = _get_sound_info(sound_id, api_key)
 	except requests.RequestException as exc:
@@ -136,18 +144,23 @@ def download_sound_by_id(sound_id: str, api_key: str, output_dir: Path, skip_exi
 		print(f"[{sound_id}] already exists, skipping: {original_path.name}")
 		return True
 
-	# 1) Try original download endpoint.
-	original_url = f"{FREESOUND_BASE_URL}/sounds/{sound_id}/download/"
-	try:
-		_stream_download(original_url, _headers(api_key), original_path)
-		print(f"[{sound_id}] downloaded original: {original_path.name}")
-		return True
-	except requests.RequestException as exc:
-		print(f"[{sound_id}] original download failed, trying preview: {exc}")
-		if original_path.exists():
-			original_path.unlink(missing_ok=True)
+	# 1) Try original download via OAuth2 (requires FREESOUND_CLIENT_SECRET in .env).
+	credentials = load_oauth2_credentials()
+	if credentials:
+		original_url = f"{FREESOUND_BASE_URL}/sounds/{sound_id}/download/"
+		try:
+			access_token = get_access_token(*credentials)
+			_stream_download(original_url, {"Authorization": f"Bearer {access_token}"}, original_path)
+			print(f"[{sound_id}] downloaded original: {original_path.name}")
+			return True
+		except requests.RequestException as exc:
+			print(f"[{sound_id}] original download failed: {exc}")
+			if original_path.exists():
+				original_path.unlink(missing_ok=True)
+	else:
+		print(f"[{sound_id}] OAuth2 not configured (no FREESOUND_CLIENT_SECRET). Falling back to preview.")
 
-	# 2) Fallback: preview download.
+	# 2) Fallback: HQ preview download (30s MP3, no OAuth2 required).
 	preview_url = _preview_url_from_payload(sound_info)
 	if not preview_url:
 		print(f"[{sound_id}] no preview available.")

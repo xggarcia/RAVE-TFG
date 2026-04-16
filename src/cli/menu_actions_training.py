@@ -221,6 +221,56 @@ def run_merge_selected_csv(ctx):
     ctx.pause()
 
 
+def run_convert_format(ctx):
+    print("\n--- Convert Format (single folder) ---")
+    folder = input("Folder containing audio files: ").strip()
+    if not folder or not os.path.exists(folder):
+        print("[X] Folder not found.")
+        ctx.pause()
+        return
+
+    target_sr_str = input("Target sample rate [44100]: ").strip()
+    target_channels_str = input("Target channels [1]: ").strip()
+    target_subtype = input("Target WAV subtype [PCM_16]: ").strip() or "PCM_16"
+
+    try:
+        target_sr = int(target_sr_str) if target_sr_str else 44100
+        target_channels = int(target_channels_str) if target_channels_str else 1
+    except ValueError:
+        print("[X] Sample rate and channels must be integers.")
+        ctx.pause()
+        return
+
+    if target_sr < 1 or target_channels < 1:
+        print("[X] Sample rate and channels must be >= 1.")
+        ctx.pause()
+        return
+
+    try:
+        from src.database_creation.convert_format import convert_directory
+    except ModuleNotFoundError:
+        from database_creation.convert_format import convert_directory
+
+    from pathlib import Path
+
+    print(
+        f"\nConverting audio in: {folder}  "
+        f"(target: {target_sr} Hz, {target_channels} channel(s), {target_subtype})"
+    )
+    ok, total = convert_directory(
+        root=Path(folder),
+        target_sr=target_sr,
+        target_channels=target_channels,
+        target_subtype=target_subtype,
+    )
+
+    if total == 0:
+        print("[!] No audio files found.")
+    else:
+        print(f"\n[OK] Converted {ok}/{total} file(s).")
+    ctx.pause()
+
+
 def dataset_creation_menu(ctx):
     while True:
         print("\n" + "=" * 60)
@@ -232,10 +282,11 @@ def dataset_creation_menu(ctx):
         print("  4) Final download only (from selected IDs CSV)")
         print("  5) Normalize volume (single folder)")
         print("  6) Merge selected IDs into combined CSV")
+        print("  7) Convert format/sample rate (single folder)")
         print("  8) Back")
         print("  9) Home")
 
-        choice = ctx.ask_choice("\nChoose: ", {"1", "2", "3", "4", "5", "6", "8", "9"})
+        choice = ctx.ask_choice("\nChoose: ", {"1", "2", "3", "4", "5", "6", "7", "8", "9"})
         if choice == "1":
             run_dataset_do_all(ctx)
         elif choice == "2":
@@ -248,6 +299,8 @@ def dataset_creation_menu(ctx):
             run_normalize_volume(ctx)
         elif choice == "6":
             run_merge_selected_csv(ctx)
+        elif choice == "7":
+            run_convert_format(ctx)
         elif choice == "8":
             return "BACK"
         elif choice == "9":

@@ -14,6 +14,7 @@ def train_workflow(
     lazy=False,
     max_db_size=10,
     config="v2_small",
+    extra_configs=None,
     val_every=1000,
     save_every=10000,
     max_steps=6000000,
@@ -31,6 +32,7 @@ def train_workflow(
         lazy: Use lazy loading for preprocessing
         max_db_size: Max database size in GB
         config: Architecture configuration
+        extra_configs: Additional RAVE configs, e.g. ["noise", "causal"]
         val_every: Validation frequency
         save_every: Save frequency
         max_steps: Maximum training steps
@@ -53,6 +55,7 @@ def train_workflow(
     out_path = TrainModel(
         name=model_name,
         config=config,
+        extra_configs=extra_configs,
         db_path=data_path,
         out_path="models/user_model/checkpoints",
         channels=channels,

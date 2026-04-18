@@ -21,7 +21,8 @@ def PreprocessDataset(audio_path, channels=1, lazy=False, max_db_size=10):
     Returns:
         Path to preprocessed data directory
     """
-    # Use absolute path to avoid RAVE bug with relative paths
+    # Use absolute paths to avoid RAVE bug with relative paths
+    audio_path = os.path.abspath(audio_path)
     data_path = os.path.abspath("preprocessed_data")
     
     # Create directory if it doesn't exist

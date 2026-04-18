@@ -9,7 +9,7 @@
 # ============================================
 set -e
 
-echo "[1/5] Detecting GPU..."
+echo "[1/6] Detecting GPU..."
 if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
     # cu124 matches the RunPod PyTorch 2.4.0 base image and any recent driver.
     TORCH_INDEX="https://download.pytorch.org/whl/cu124"
@@ -19,20 +19,36 @@ else
     echo "  No NVIDIA GPU detected - installing CPU-only PyTorch wheels."
 fi
 
-echo "[2/5] Installing PyTorch (torch, torchaudio)..."
+echo "[2/6] Checking for ffmpeg..."
+if ! command -v ffmpeg >/dev/null 2>&1; then
+    echo "  ffmpeg not found - installing..."
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get install -y ffmpeg
+    elif command -v brew >/dev/null 2>&1; then
+        brew install ffmpeg
+    else
+        echo "ERROR: Cannot install ffmpeg automatically. Install it manually and ensure it is on your PATH."
+        exit 1
+    fi
+    echo "  ffmpeg installed."
+else
+    echo "  ffmpeg already installed."
+fi
+
+echo "[3/6] Installing PyTorch (torch, torchaudio)..."
 # --force-reinstall so a preinstalled torch (e.g. the one shipped by the
 # RunPod PyTorch base image) cannot stay behind with a different CUDA build
 # than torchaudio and trigger a version-mismatch error at import time.
-pip install --force-reinstall --index-url "$TORCH_INDEX" "torch>=2.0.0" "torchaudio>=2.0.0"
+pip install --force-reinstall --index-url "$TORCH_INDEX" "torch==2.5.0" "torchaudio==2.5.0"
 
-echo "[3/5] Installing core dependencies..."
+echo "[4/6] Installing core dependencies..."
 pip install -r requirements.txt
 
-echo "[4/5] Installing acids-rave and acids-msprior (without pinned deps)..."
+echo "[5/6] Installing acids-rave and acids-msprior (without pinned deps)..."
 pip install --no-deps "acids-rave>=2.3.0"
 pip install --no-deps "acids-msprior>=0.1.0"
 
-echo "[5/5] Patching acids-rave for scipy compatibility..."
+echo "[6/6] Patching acids-rave for scipy compatibility..."
 python install/patch_rave.py
 
 echo ""

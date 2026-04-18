@@ -326,6 +326,8 @@ def run_full_workflow(ctx):
 
     model_name = input("Model name [my_model]: ").strip() or "my_model"
     config = input("Config [v2_small/v2/v3] [v2_small]: ").strip() or "v2_small"
+    extra_raw = input("Extra configs, comma-separated (e.g. noise,causal) [none]: ").strip()
+    extra_configs = [c.strip() for c in extra_raw.split(",") if c.strip()] if extra_raw else None
     channels = ctx.ask_int("Channels [1]: ", 1)
     val_every = ctx.ask_int("Validation every N steps [1000]: ", 1000)
     max_steps = ctx.ask_int("Max steps [6000000]: ", 6000000)
@@ -342,6 +344,7 @@ def run_full_workflow(ctx):
         audio_path=audio_path,
         model_name=model_name,
         config=config,
+        extra_configs=extra_configs,
         channels=channels,
         val_every=val_every,
         max_steps=max_steps,
@@ -389,6 +392,8 @@ def run_train_model(ctx):
 
     model_name = input("Model name [my_model]: ").strip() or "my_model"
     config = input("Config [v2_small/v2/v3] [v2_small]: ").strip() or "v2_small"
+    extra_raw = input("Extra configs, comma-separated (e.g. noise,causal) [none]: ").strip()
+    extra_configs = [c.strip() for c in extra_raw.split(",") if c.strip()] if extra_raw else None
     db_path = input("Preprocessed dataset path [preprocessed_data]: ").strip() or "preprocessed_data"
     channels = ctx.ask_int("Channels [1]: ", 1)
     val_every = ctx.ask_int("Validation every N steps [1000]: ", 1000)
@@ -406,6 +411,7 @@ def run_train_model(ctx):
     ctx.train_fn(
         name=model_name,
         config=config,
+        extra_configs=extra_configs,
         db_path=db_path,
         channels=channels,
         val_every=val_every,

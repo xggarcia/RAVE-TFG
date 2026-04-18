@@ -49,6 +49,7 @@ def find_latest_run(out_path, name):
 def TrainModel(
     name="my_model",
     config="v2_small",
+    extra_configs=None,
     db_path="preprocessed_data",
     out_path="models/user_model/checkpoints",
     channels=1,
@@ -64,6 +65,7 @@ def TrainModel(
     Args:
         name: Model name
         config: Architecture configuration (v2_small, v2, v3, etc.)
+        extra_configs: Additional RAVE configs to apply, e.g. ["noise", "causal"]
         db_path: Path to preprocessed dataset
         out_path: Output path for checkpoints
         channels: Number of audio channels
@@ -96,6 +98,7 @@ def TrainModel(
         "rave",
         "train",
         "--config", config,
+        *[arg for c in (extra_configs or []) for arg in ("--config", c)],
         "--db_path", db_path,
         "--out_path", out_path,
         "--name", name,

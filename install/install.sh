@@ -51,7 +51,8 @@ pip install --no-deps -r requirements.txt
 # Install deps that are safe to resolve normally (no torch conflict).
 pip install scipy pytorch-lightning absl-py cached-conv einops Flask gin-config \
     GPUtil nn-tilde PyYAML scikit-learn tensorboard tqdm udls lmdb pathos \
-    librosa soundfile sounddevice customtkinter ipython numpy requests
+    librosa soundfile sounddevice customtkinter ipython numpy requests \
+    torchmetrics audioread pooch
 
 echo "[5/6] Installing acids-rave and acids-msprior (without pinned deps)..."
 pip install --no-deps "acids-rave>=2.3.0"
@@ -59,6 +60,9 @@ pip install --no-deps "acids-msprior>=0.1.0"
 
 echo "[6/6] Patching acids-rave for scipy compatibility..."
 python install/patch_rave.py
+
+echo "[+] Reinstalling torch/torchaudio to ensure CUDA 12.8 versions are active..."
+pip install --force-reinstall --index-url "$TORCH_INDEX" "torch==2.8.0" "torchaudio==2.8.0"
 
 echo ""
 echo "============================================"

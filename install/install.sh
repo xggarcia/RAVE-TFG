@@ -49,6 +49,7 @@ echo "[4/6] Installing core dependencies..."
 # --no-deps prevents pip from resolving torch again and downgrading it.
 pip install --no-deps -r requirements.txt
 # Install deps that are safe to resolve normally (no torch conflict).
+pip install --ignore-installed blinker
 pip install scipy pytorch-lightning absl-py cached-conv einops Flask gin-config \
     GPUtil nn-tilde PyYAML scikit-learn tensorboard tqdm udls lmdb pathos \
     librosa soundfile sounddevice customtkinter ipython numpy requests \

@@ -4,7 +4,7 @@ from pathlib import Path
 
 def run_dataset_do_all(ctx):
     print("\n--- Dataset Creation: DO ALL ---")
-    csv_path = input("Query CSV path: ").strip()
+    csv_path = ctx.ask_path("Query CSV path: ")
     if not csv_path or not os.path.exists(csv_path):
         print("[X] Invalid query CSV path.")
         ctx.pause()
@@ -33,7 +33,7 @@ def run_dataset_do_all(ctx):
 
 def run_dataset_first_download_only(ctx):
     print("\n--- Dataset Creation: FIRST DOWNLOAD ONLY ---")
-    csv_path = input("Query CSV path: ").strip()
+    csv_path = ctx.ask_path("Query CSV path: ")
     if not csv_path or not os.path.exists(csv_path):
         print("[X] Invalid query CSV path.")
         ctx.pause()
@@ -113,7 +113,7 @@ def run_dataset_select_only(ctx):
 
 def run_dataset_download_only(ctx):
     print("\n--- Dataset Creation: DOWNLOAD SELECTED IDS ---")
-    selected_csv_path = input("Selected IDs CSV path: ").strip()
+    selected_csv_path = os.path.normpath(input("Selected IDs CSV path: ").strip())
     if not selected_csv_path or not os.path.exists(selected_csv_path):
         print("[X] Invalid selected IDs CSV path.")
         ctx.pause()
@@ -313,7 +313,7 @@ def run_full_workflow(ctx):
     if mode == "9":
         return
 
-    audio_path = input("Audio folder path: ").strip()
+    audio_path = ctx.ask_path("Audio folder path: ")
     if not audio_path or not os.path.exists(audio_path):
         print("[X] Invalid audio folder path.")
         ctx.pause()
@@ -360,7 +360,7 @@ def run_preprocess(ctx):
     if mode == "9":
         return
 
-    audio_path = input("Audio folder path: ").strip()
+    audio_path = ctx.ask_path("Audio folder path: ")
     if not audio_path or not os.path.exists(audio_path):
         print("[X] Invalid audio folder path.")
         ctx.pause()

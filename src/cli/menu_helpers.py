@@ -28,6 +28,11 @@ class MenuContext:
         self.phase_train_fn = phase_train_fn
         self.generate_anchors_fn = generate_anchors_fn
 
+    @staticmethod
+    def ask_path(prompt):
+        """Read a path from the user and normalize separators for the current OS."""
+        return os.path.normpath(input(prompt).strip())
+
     def ask_choice(self, prompt, valid_choices):
         while True:
             choice = input(prompt).strip()

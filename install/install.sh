@@ -36,13 +36,22 @@ else
 fi
 
 echo "[3/6] Installing PyTorch (torch, torchaudio)..."
-# --force-reinstall so a preinstalled torch (e.g. the one shipped by the
-# RunPod PyTorch base image) cannot stay behind with a different CUDA build
-# than torchaudio and trigger a version-mismatch error at import time.
-pip install --force-reinstall --index-url "$TORCH_INDEX" "torch==2.8.0" "torchaudio==2.8.0"
+# Skip if torch 2.8+ already installed (e.g. RunPod base image).
+# Use --no-deps on requirements.txt later to avoid pip downgrading torch.
+TORCH_VERSION=$(python -c "import torch; print(torch.__version__)" 2>/dev/null || echo "none")
+if [[ "$TORCH_VERSION" == 2.8* ]]; then
+    echo "  torch $TORCH_VERSION already installed, skipping."
+else
+    pip install --index-url "$TORCH_INDEX" "torch==2.8.0" "torchaudio==2.8.0"
+fi
 
 echo "[4/6] Installing core dependencies..."
-pip install -r requirements.txt
+# --no-deps prevents pip from resolving torch again and downgrading it.
+pip install --no-deps -r requirements.txt
+# Install deps that are safe to resolve normally (no torch conflict).
+pip install scipy pytorch-lightning absl-py cached-conv einops Flask gin-config \
+    GPUtil nn-tilde PyYAML scikit-learn tensorboard tqdm udls lmdb pathos \
+    librosa soundfile sounddevice customtkinter ipython numpy requests
 
 echo "[5/6] Installing acids-rave and acids-msprior (without pinned deps)..."
 pip install --no-deps "acids-rave>=2.3.0"

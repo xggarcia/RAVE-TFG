@@ -12,8 +12,8 @@ set -e
 echo "[1/6] Detecting GPU..."
 if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
     # cu124 matches the RunPod PyTorch 2.4.0 base image and any recent driver.
-    TORCH_INDEX="https://download.pytorch.org/whl/cu124"
-    echo "  NVIDIA GPU detected - installing CUDA 12.4 PyTorch wheels."
+    TORCH_INDEX="https://download.pytorch.org/whl/cu128"
+    echo "  NVIDIA GPU detected - installing CUDA 12.8 PyTorch wheels."
 else
     TORCH_INDEX="https://download.pytorch.org/whl/cpu"
     echo "  No NVIDIA GPU detected - installing CPU-only PyTorch wheels."
@@ -39,7 +39,7 @@ echo "[3/6] Installing PyTorch (torch, torchaudio)..."
 # --force-reinstall so a preinstalled torch (e.g. the one shipped by the
 # RunPod PyTorch base image) cannot stay behind with a different CUDA build
 # than torchaudio and trigger a version-mismatch error at import time.
-pip install --force-reinstall --index-url "$TORCH_INDEX" "torch==2.5.0" "torchaudio==2.5.0"
+pip install --force-reinstall --index-url "$TORCH_INDEX" "torch==2.8.0" "torchaudio==2.8.0"
 
 echo "[4/6] Installing core dependencies..."
 pip install -r requirements.txt

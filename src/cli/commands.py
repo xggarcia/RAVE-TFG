@@ -21,6 +21,7 @@ def build_parser():
     train_parser.add_argument("--save-every", type=int, default=10000, help="Save every N steps (default: 10000)")
     train_parser.add_argument("--max-steps", type=int, default=6000000, help="Max training steps (default: 6000000)")
     train_parser.add_argument("--batch-size", type=int, default=8, help="Batch size (default: 8)")
+    train_parser.add_argument("--gin-override", action="append", default=[], metavar="KEY=VALUE", help="Override gin config bindings (e.g. PHASE_1_DURATION=350000)")
 
     export_parser = subparsers.add_parser("export", help="Export trained model to TorchScript")
     export_parser.add_argument("--run-path", help="Path to training run folder (auto-detects if not provided)")
@@ -96,6 +97,7 @@ def run_command(args):
             save_every=args.save_every,
             max_steps=args.max_steps,
             batch_size=args.batch_size,
+            overrides=args.gin_override,
         )
 
     elif args.command == "export":

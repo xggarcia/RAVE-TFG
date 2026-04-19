@@ -58,6 +58,7 @@ def TrainModel(
     max_steps=6000000,
     batch_size=8,
     ckpt=None,
+    overrides=None,
 ):
     """
     Train a RAVE model.
@@ -110,6 +111,8 @@ def TrainModel(
     ]
     for gpu_id in _detect_gpu_flag():
         cmd.extend(["--gpu", gpu_id])
+    for override in (overrides or []):
+        cmd.extend(["--override", override])
     if resolved_ckpt:
         cmd.extend(["--ckpt", resolved_ckpt])
 

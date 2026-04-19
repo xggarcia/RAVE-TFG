@@ -1,0 +1,5 @@
+from __gin__ import dynamic_registration
+
+include "configs/v2.gin"
+
+PHASE_1_DURATION = 350000

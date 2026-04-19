@@ -22,6 +22,7 @@ def build_parser():
     train_parser.add_argument("--max-steps", type=int, default=6000000, help="Max training steps (default: 6000000)")
     train_parser.add_argument("--batch-size", type=int, default=8, help="Batch size (default: 8)")
     train_parser.add_argument("--gin-override", action="append", default=[], metavar="KEY=VALUE", help="Override gin config bindings (e.g. PHASE_1_DURATION=350000)")
+    train_parser.add_argument("--extra-config", action="append", default=[], metavar="CONFIG", help="Additional RAVE configs to stack (e.g. noise, causal)")
 
     export_parser = subparsers.add_parser("export", help="Export trained model to TorchScript")
     export_parser.add_argument("--run-path", help="Path to training run folder (auto-detects if not provided)")
@@ -91,6 +92,7 @@ def run_command(args):
         TrainModel(
             name=args.name,
             config=args.config,
+            extra_configs=args.extra_config,
             db_path=args.db_path,
             channels=args.channels,
             val_every=args.val_every,

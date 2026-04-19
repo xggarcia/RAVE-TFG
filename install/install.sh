@@ -23,7 +23,7 @@ echo "[2/6] Checking for ffmpeg..."
 if ! command -v ffmpeg >/dev/null 2>&1; then
     echo "  ffmpeg not found - installing..."
     if command -v apt-get >/dev/null 2>&1; then
-        apt-get install -y ffmpeg
+        apt-get update -y && apt-get install -y ffmpeg
     elif command -v brew >/dev/null 2>&1; then
         brew install ffmpeg
     else

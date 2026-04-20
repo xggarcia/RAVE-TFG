@@ -16,13 +16,13 @@ class _Var:
 
 
 def _BooleanVar(value=False):
-    return _BooleanVar(value=value) if _TK_AVAILABLE else _Var(value)
+    return tk.BooleanVar(value=value) if _TK_AVAILABLE else _Var(value)
 
 def _DoubleVar(value=0.0):
-    return _DoubleVar(value=value) if _TK_AVAILABLE else _Var(value)
+    return tk.DoubleVar(value=value) if _TK_AVAILABLE else _Var(value)
 
 def _StringVar(value=""):
-    return _StringVar(value=value) if _TK_AVAILABLE else _Var(value)
+    return tk.StringVar(value=value) if _TK_AVAILABLE else _Var(value)
 
 
 class ModelSlot:

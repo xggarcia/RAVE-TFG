@@ -44,3 +44,157 @@ These rules apply whenever writing or editing TFG document sections.
 - Each section must follow: Context/motivation → Objective → Methodology → Results/contributions
 - Keep citations in the format: [N] Author(s). (Year). Title. Source. URL
 - Approximately 250 words for the abstract; section length proportional to complexity
+
+
+# RAVE-TFG — desktop app instructions for Claude Code
+
+## Context
+
+RAVE-TFG is a Python tool for training and using RAVE (Realtime Audio Variational autoEncoder) neural audio models. It currently runs as an interactive CLI menu. We are converting it into a **PySide6 desktop app** while keeping the exact same Python backend.
+
+## Single source of truth for UI/UX
+
+The complete UI/UX design lives in `./design-mock/` as an HTML+React prototype.
+
+- Open `design-mock/RAVE-TFG.html` in a browser to navigate the full app as a live mockup.
+- Every screen, form field, state (loading, error, success, empty), color, typography choice and custom component (knobs, VU meters, waveform, spectrogram, phase XY pad, loss chart) is defined there.
+- **Do not improvise UI.** When in doubt, consult the mock. If the mock is ambiguous, ask the user before inventing.
+
+Files worth reading in the mock:
+- `styles/tokens.css` — color palette, type scale, spacing, radii. Port these to `app/ui/tokens.qss`.
+- `components/primitives.jsx` — Knob, Slider, VU, Waveform, Spectrogram, LineChart, Progress, Toggle, Checkbox, RadioGroup. These become custom `QWidget` subclasses.
+- `components/shell.jsx` — TitleBar, Sidebar, StatusRail, PageHeader, ContentArea layout. Becomes `MainWindow`.
+- `components/screens-*.jsx` — one file per section. Match these page-for-page.
+
+## Target stack
+
+| Concern | Library |
+|---|---|
+| UI framework | **PySide6** (Qt 6) |
+| Styling | Qt Style Sheets (QSS) + per-widget `QPainter` for custom components |
+| Live plots | **pyqtgraph** (loss curve, spectrogram, latent trajectory) |
+| Audio I/O | **sounddevice** (streaming GUI) |
+| Heavy work | `QThread` / `QProcess` / `QThreadPool` — never block the UI thread |
+| RAVE core | existing Python modules — **wrap, do not rewrite** |
+
+## Non-negotiable rules
+
+1. **Do not rewrite the RAVE core logic.** The existing CLI modules (preprocess, train, export, stream, dataset utilities) must stay importable as libraries. The GUI is a thin wrapper that calls them in worker threads/processes and wires their outputs (progress, logs, metrics) to Qt signals.
+2. **Keep the CLI working** throughout the port. The desktop app should share backend modules with the CLI, not replace them.
+3. **UI thread stays responsive.** Any of: disk I/O over ~50 ms, model loading, training, preprocessing, audio inference — runs off-thread. Stream status via signals.
+4. **Match the mock.** Field labels, placements, defaults, helper text, hint copy, state variants, color of running vs done vs error — all come from the mock.
+5. **Custom widgets with QPainter first, external libs second.** Knob, VU, Waveform, PhasePad are `QWidget` subclasses drawing in `paintEvent`. Ask before adding a UI dependency beyond PySide6 + pyqtgraph.
+6. **Ask before each phase.** Before starting a phase, paste the relevant mock screenshot and enumerate the fields/states/widgets you will implement. Wait for approval.
+
+## Phase plan
+
+Work strictly in order. Finish and ship a phase before starting the next. Each phase ends with a working binary the user can run.
+
+### Phase 0 — Scaffold
+- `pyproject.toml` with PySide6 + pyqtgraph deps
+- `app/__main__.py` entrypoint
+- `app/ui/tokens.qss` ported from `design-mock/styles/tokens.css` (colors, radii, fonts). Load with `QApplication.setStyleSheet`.
+- `app/ui/main_window.py` — `MainWindow` = sidebar + content stack + status rail + titlebar
+- `app/ui/pages/home.py` — dashboard page per `screens-home.jsx`, navigation tiles wired to `stack.setCurrentWidget`
+- Only Home is real; other routes render a `QLabel` placeholder
+
+Acceptance: app launches, sidebar items switch the visible page, Home matches the mock visually.
+
+### Phase 1 — Simple forms
+Pages that are just config → start command → report result:
+- Preprocess
+- Export
+- Clean user data (with confirm dialog per `screens-data.jsx:CleanScreen`)
+
+For each, build a form page whose **Start** button launches the corresponding CLI function in a `QThread`, shows a progress panel, and emits `finished(success, message)`.
+
+### Phase 2 — Train (live progress)
+The biggest phase. Implement:
+- Train model page (form + extra-configs grid from `screens-train.jsx`)
+- **Resume banner**: scan `~/runs/<model>/…` for the latest checkpoint on form change; show banner with *Resume* / *Start fresh*
+- Run training in a `QProcess` (preferred over `QThread` — isolation, killable)
+- Parse stdout for step / loss / it/s / val_loss; emit signals; update the six-stat strip
+- `pyqtgraph.PlotWidget` for the loss chart (acid-green stroke, same shape as mock)
+- Reconstruction samples panel: display the latest waveform + spectrogram from training callback outputs
+- Log stream `QPlainTextEdit` with color per level (INFO/WARN/ERR) and autoscroll toggle
+- **Error state** per `screens-states.jsx:TrainErrorScreen` — CUDA OOM parsing + suggested-fixes panel
+
+### Phase 3 — Dataset wizard
+- `screens-data.jsx:DatasetWizardScreen` split-view layout
+- Seven sub-flows (`do_all`, `first`, `preview`, `final`, `normalize`, `merge`, `convert`)
+- `preview` (Select from previews) is the hardest: a `QListView` with embedded waveform widgets, keyboard shortcuts `A` / `R` / `Space` / `← →`, sounddevice playback of the selected clip
+
+### Phase 4 — Advanced training
+- Train prior
+- Phase-aware training (detect phase subfolders, drag-reorder list)
+- Phase anchors (PCA projection view — use `pyqtgraph.ScatterPlotItem`)
+
+### Phase 5 — Full workflow
+- Run preprocess → train → export as a chained pipeline, each stage's status in the stepper view from `screens-train.jsx:WorkflowScreen`
+
+### Phase 6 — Streaming GUI (hero)
+Most complex. Budget ~1–2 weeks.
+- Audio I/O via `sounddevice` duplex stream, block size 256, mono, 44.1 kHz
+- **Inference worker**: separate `QThread` loading up to 4 TorchScript models, blending outputs by per-slot weights
+- **Slot widgets**: four `SlotPanel`s with custom knobs (Gain/Temp/Smooth), embedded live `pyqtgraph.ImageView` spectrogram, per-slot VU meter
+- **PhasePad**: custom `QWidget` with mouse tracking, paints 4-corner radial color field + cursor + trail; emits `xyChanged(float, float)`
+- **Master strip**: live VU L/R, master/dry-wet knobs, latency readout, LIVE indicator
+- **Prior model strip**: toggleable, feeds latent trajectory into inference worker
+- Start/stop cleanly; handle xruns; show buffer underrun warnings in status rail
+
+## Project layout
+
+```
+rave-tfg/
+├── CLAUDE.md              ← this file
+├── design-mock/           ← the HTML prototype (reference only, do not modify)
+├── pyproject.toml
+├── rave_core/             ← existing CLI logic — keep importable
+│   ├── preprocess.py
+│   ├── train.py
+│   ├── export.py
+│   ├── stream.py
+│   └── dataset/…
+├── app/                   ← new desktop app
+│   ├── __main__.py
+│   ├── ui/
+│   │   ├── tokens.qss
+│   │   ├── main_window.py
+│   │   ├── shell/         ← sidebar, status rail, titlebar
+│   │   ├── widgets/       ← Knob, VU, Waveform, PhasePad, …
+│   │   └── pages/         ← one file per screen
+│   ├── workers/           ← QThread/QProcess wrappers for each core op
+│   └── models/             ← dataclasses + stateful models (Runs, Models, Devices)
+└── tests/
+```
+
+## Design tokens → QSS mapping
+
+Port these from `design-mock/styles/tokens.css`. Use `QPalette` for colors that QSS cannot style (e.g. selection), `QSS` for everything else.
+
+- `--bg-0..5`, `--fg-0..4`, `--line-0..2` → QSS color variables (hardcode per widget class)
+- `--acid`, `--amber`, `--magenta`, `--blue` → accent role classes (`QPushButton[role="primary"]`, etc.)
+- `--mono`, `--sans` → `QFontDatabase.addApplicationFont` for JetBrains Mono + Inter, set via `QFont`
+- Radii → `border-radius` in QSS
+- Focus rings, hover states → QSS `:hover`, `:focus`
+
+## Communication protocol between UI and workers
+
+Use Qt signals. Every worker exposes at minimum:
+```python
+class TrainWorker(QObject):
+    progress = Signal(dict)         # {step, loss, it_s, eta}
+    log      = Signal(str, str)     # (level, message)
+    sample   = Signal(object)       # {target_wav, recon_wav, target_spec, recon_spec}
+    failed   = Signal(str, str)     # (short, traceback)
+    finished = Signal(dict)         # summary
+```
+
+UI pages listen on these and update widgets. Never access worker state directly from the UI thread.
+
+## When working
+
+- Before starting any phase, read the relevant `components/screens-*.jsx` top-to-bottom and list the widgets/fields/states you will implement. Confirm with the user.
+- Before adding any third-party Python dep beyond PySide6 + pyqtgraph + sounddevice + existing RAVE deps — ask.
+- Keep PRs/commits phase-scoped. Don't mix scaffolding with feature work.
+- Screenshot the app after each phase and diff against the mock. Flag any divergence and ask before resolving it.

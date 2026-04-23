@@ -37,6 +37,17 @@ class Knob(QWidget):
         self._value_lbl.setText(f"{value:.2f}")
         self.valueChanged.emit(value)
 
+    def set_available(self, available: bool):
+        self._dial.set_available(available)
+        alpha = "ff" if available else "44"
+        self._label.setStyleSheet(
+            f"color:{FG2}{alpha}; font-size:9px; {MONO} letter-spacing:1px; background:transparent;"
+        )
+        self._value_lbl.setStyleSheet(
+            f"color:{FG0}{alpha}; font-size:10px; {MONO} background:transparent;"
+        )
+        self._dial.setEnabled(available)
+
     @property
     def value(self) -> float:
         return self._value
@@ -49,7 +60,12 @@ class _Dial(QWidget):
         super().__init__(parent)
         self._value = value
         self._accent = accent
+        self._available = True
         self.setFixedSize(size, size)
+
+    def set_available(self, available: bool):
+        self._available = available
+        self.update()
 
     def mousePressEvent(self, event):
         self._set_from_pos(event.position().y())
@@ -74,11 +90,21 @@ class _Dial(QWidget):
         cy = r.center().y()
         radius = min(r.width(), r.height()) // 2 - 1
 
-        p.setPen(QPen(QColor(LINE1), 1))
-        p.setBrush(QColor(BG2))
+        alpha = 255 if self._available else 60
+        arc_color = QColor(self._accent)
+        arc_color.setAlpha(alpha)
+        body_color = QColor(BG2)
+        body_color.setAlpha(alpha)
+        border_color = QColor(LINE1)
+        border_color.setAlpha(alpha)
+        needle_color = QColor(FG3)
+        needle_color.setAlpha(alpha)
+
+        p.setPen(QPen(border_color, 1))
+        p.setBrush(body_color)
         p.drawEllipse(cx - radius, cy - radius, radius * 2, radius * 2)
 
-        p.setPen(QPen(QColor(self._accent), 2))
+        p.setPen(QPen(arc_color, 2))
         start = 225 * 16
         span = int(-(270 * self._value) * 16)
         p.drawArc(cx - radius + 2, cy - radius + 2, (radius - 2) * 2, (radius - 2) * 2, start, span)
@@ -86,7 +112,7 @@ class _Dial(QWidget):
         angle = (225 - 270 * self._value) * 3.14159265 / 180.0
         px = cx + int((radius - 6) * __import__("math").cos(angle))
         py = cy - int((radius - 6) * __import__("math").sin(angle))
-        p.setPen(QPen(QColor(FG3), 1.5))
+        p.setPen(QPen(needle_color, 1.5))
         p.drawLine(cx, cy, px, py)
 
         p.end()

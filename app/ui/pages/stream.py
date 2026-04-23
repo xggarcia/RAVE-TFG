@@ -196,7 +196,6 @@ class StreamPage(QWidget):
 
         master_row = QHBoxLayout()
         master_row.addWidget(Knob("MASTER", 0.75))
-        master_row.addWidget(Knob("DRY/WET", 0.4, accent=AMBER))
         vu_col = QHBoxLayout()
         vu_l = VUMeter(0.0, 0.0)
         vu_r = VUMeter(0.0, 0.0)
@@ -229,6 +228,9 @@ class StreamPage(QWidget):
             slot = SlotPanel(i, name, self._models, selected_model, accent)
             slot.paramsChanged.connect(self._on_slot_params_changed)
             slot.modelChanged.connect(self._on_slot_model_changed)
+            slot.enabledChanged.connect(self._on_slot_enabled_changed)
+            slot.inputModeChanged.connect(self._on_slot_input_mode_changed)
+            slot.audioFileChanged.connect(self._on_slot_audio_file_changed)
             self._slot_widgets.append(slot)
             grid.addWidget(slot, i // 2, i % 2)
 
@@ -330,13 +332,37 @@ class StreamPage(QWidget):
         if running:
             self.statusChanged.emit("Streaming live", ACID)
             self._set_live_preview_state(streaming=True)
+            # Push initial slot state to the worker
+            for slot in self._slot_widgets:
+                self._worker.set_slot_enabled(slot._index, slot.powered)
+                self._worker.set_slot_input_mode(slot._index, slot.input_mode)
         else:
             self.statusChanged.emit("Idle", FG3)
 
-    @Slot(int, float, float)
-    def _on_slot_params_changed(self, index: int, gain: float, temp: float, smooth: float):
+    @Slot(int, float, float, float, float)
+    def _on_slot_params_changed(self, index: int, gain: float, temp: float, smooth: float, dry_wet: float):
         if self._worker:
-            self._worker.set_slot_params(index, gain=gain, temp=temp, smooth=smooth)
+            self._worker.set_slot_params(index, gain=gain, temp=temp, smooth=smooth, dry_wet=dry_wet)
+
+    @Slot(int, str)
+    def _on_slot_audio_file_changed(self, index: int, path: str):
+        if self._worker:
+            self._worker.set_slot_audio_file(index, path)
+        from pathlib import Path as _P
+        self.statusChanged.emit(f"Slot {index + 1} audio → {_P(path).name}", FG2)
+
+    @Slot(int, str)
+    def _on_slot_input_mode_changed(self, index: int, mode: str):
+        if self._worker:
+            self._worker.set_slot_input_mode(index, mode)
+        self.statusChanged.emit(f"Slot {index + 1} input → {mode}", FG2)
+
+    @Slot(int, bool)
+    def _on_slot_enabled_changed(self, index: int, enabled: bool):
+        if self._worker:
+            self._worker.set_slot_enabled(index, enabled)
+        state = "on" if enabled else "off"
+        self.statusChanged.emit(f"Slot {index + 1} powered {state}", FG2)
 
     @Slot(int, str)
     def _on_slot_model_changed(self, index: int, model_path: str):

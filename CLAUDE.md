@@ -73,9 +73,23 @@ Files worth reading in the mock:
 | UI framework | **PySide6** (Qt 6) |
 | Styling | Qt Style Sheets (QSS) + per-widget `QPainter` for custom components |
 | Live plots | **pyqtgraph** (loss curve, spectrogram, latent trajectory) |
-| Audio I/O | **sounddevice** (streaming GUI) |
+| Audio I/O | **sounddevice** (streaming GUI) — duplex streams, block size as low as 64 samples |
 | Heavy work | `QThread` / `QProcess` / `QThreadPool` — never block the UI thread |
 | RAVE core | existing Python modules — **wrap, do not rewrite** |
+| Resampling | **torchaudio.transforms.Resample** (GPU-capable) |
+| Chunking / silence removal | **librosa** |
+| Loudness normalization | **pyloudnorm** (EBU R128) |
+| Format conversion | **soundfile** (libsndfile wrapper — wav/flac/ogg); use `torchaudio.load` + `soundfile.write` directly |
+| Packaging | **uv** + `pyproject.toml`; lock with `uv lock` → `uv.lock` |
+
+### Library decisions — rationale & exclusions
+
+- **sounddevice over pyaudio**: pyaudio is older and more platform-quirky; avoid unless sounddevice fails on a target platform.
+- **pyqtgraph over matplotlib for live updates**: GPU-accelerated, designed for real-time data, much faster for VU/spectrogram/PhasePad.
+- **QProcess over QThread for training**: isolates CUDA memory from the GUI process — a training crash won't kill the UI; process is cleanly killable. Parse stdout line-by-line with regex (no MLflow/W&B unless user explicitly requests experiment tracking).
+- **pydub is banned**: shells out to ffmpeg, adds fragile subprocess dependency. Use `torchaudio.load` + `soundfile.write` instead.
+- **No standalone binary (PyInstaller/briefcase)**: PyInstaller produces ~2 GB bundles with PyTorch and has limited PyTorch support in briefcase. Ship `pyproject.toml` + install script; target users (ML practitioners) can manage a Python 3.12 env.
+- **sounddevice + QThread for streaming**: run the stream callback off-thread, push buffers to the GUI via Qt signals; pair with numpy ring buffers for the GUI → inference → output pipeline.
 
 ## Non-negotiable rules
 

@@ -63,17 +63,27 @@ def generate_mixed_chunk(self, active_slots):
             decode_start = time.perf_counter()
             prior_chunk_used = False
             with torch.no_grad():
+                if slot.input_mode.get() == "audio" and slot.encoded_latents is None:
+                    # File not loaded yet — output silence for this slot
+                    slot.cached_audio = np.zeros(self.chunk_samples, dtype=np.float32)
+                    continue
+
                 if slot.input_mode.get() == "audio" and slot.encoded_latents is not None:
                     total_latent_frames = slot.encoded_latents.shape[-1]
 
                     if slot.latent_position + slot.latent_length <= total_latent_frames:
                         z = slot.encoded_latents[:, :, slot.latent_position:slot.latent_position + slot.latent_length]
+                        dry_pos = slot.audio_sample_pos
                         slot.latent_position += slot.latent_length
+                        slot.audio_sample_pos += self.chunk_samples
                     else:
                         if slot.loop_audio.get():
                             slot.latent_position = 0
-                            z = slot.encoded_latents[:, :, slot.latent_position:slot.latent_position + slot.latent_length]
+                            slot.audio_sample_pos = 0
+                            z = slot.encoded_latents[:, :, 0:slot.latent_length]
+                            dry_pos = 0
                             slot.latent_position += slot.latent_length
+                            slot.audio_sample_pos += self.chunk_samples
                         else:
                             self.schedule_ui_callback(lambda s=slot: deactivate_finished_audio_slot(self, s))
                             continue
@@ -187,7 +197,26 @@ def generate_mixed_chunk(self, active_slots):
                 else:
                     audio = np.pad(audio, (0, self.chunk_samples - len(audio)))
 
-            slot.cached_audio = audio.astype(np.float32, copy=False)
+            audio = audio.astype(np.float32, copy=False)
+
+            # Dry/wet blend — only meaningful in audio mode with raw audio available
+            if slot.input_mode.get() == "audio" and slot.raw_audio is not None:
+                w = float(slot.dry_wet.get())
+                raw = slot.raw_audio
+                n = len(audio)
+                end = dry_pos + n
+                if end <= len(raw):
+                    dry_chunk = raw[dry_pos:end]
+                else:
+                    # loop-wrap
+                    part1 = raw[dry_pos:]
+                    part2 = raw[: end - len(raw)]
+                    dry_chunk = np.concatenate([part1, part2])
+                if len(dry_chunk) < n:
+                    dry_chunk = np.pad(dry_chunk, (0, n - len(dry_chunk)))
+                audio = (1.0 - w) * dry_chunk + w * audio
+
+            slot.cached_audio = audio
             slot.last_decode_cycle = self._producer_cycle
 
         if slot.cached_audio is not None:

@@ -8,6 +8,38 @@ import numpy as np
 from PySide6.QtCore import QThread, Signal
 
 
+def _detect_model_sr(model, model_path: str) -> int | None:
+    # 1. Try model.sr attribute (RAVE exports this in most versions)
+    for attr in ("sr", "sample_rate", "sampling_rate"):
+        try:
+            val = int(getattr(model, attr))
+            if val > 0:
+                return val
+        except Exception:
+            pass
+
+    # 2. Try model.sr() as a callable (some TorchScript exports)
+    try:
+        val = int(model.sr())
+        if val > 0:
+            return val
+    except Exception:
+        pass
+
+    # 3. Fall back to filename heuristic: _r44100_ or _22050_ etc.
+    for pattern in (r"_r(\d{4,6})_", r"[_\-](\d{4,6})[_\-]", r"(\d{4,6})hz"):
+        m = re.search(pattern, model_path, re.IGNORECASE)
+        if m:
+            try:
+                val = int(m.group(1))
+                if 8000 <= val <= 192000:
+                    return val
+            except ValueError:
+                pass
+
+    return None
+
+
 class _Var:
     def __init__(self, value):
         self._value = value
@@ -36,11 +68,14 @@ class _SlotState:
         self.gain = _Var(0.6)
         self.temperature = _Var(0.6)
         self.smoothing = _Var(0.4)
+        self.dry_wet = _Var(1.0)  # 0 = dry (passthrough silence), 1 = fully wet
 
         self.input_mode = _Var("random")
         self.audio_file_path = None
         self.encoded_latents = None
+        self.raw_audio = None          # float32 numpy array, resampled to model SR
         self.latent_position = 0
+        self.audio_sample_pos = 0      # advances by chunk_samples in sync with latent_position
         self.loop_audio = _Var(True)
         self.random_intensity = _Var(1.0)
         self.density = _Var(1.0)
@@ -93,7 +128,8 @@ class StreamWorker(QThread):
         if self._engine is not None:
             self._engine.stop()
 
-    def set_slot_params(self, index: int, gain: float | None = None, temp: float | None = None, smooth: float | None = None):
+    def set_slot_params(self, index: int, gain: float | None = None, temp: float | None = None,
+                        smooth: float | None = None, dry_wet: float | None = None):
         with self._lock:
             if not (0 <= index < len(self._slots)):
                 return
@@ -104,6 +140,8 @@ class StreamWorker(QThread):
                 slot.temperature.set(max(0.1, min(3.0, temp)))
             if smooth is not None:
                 slot.smoothing.set(max(0.0, min(0.95, smooth)))
+            if dry_wet is not None:
+                slot.dry_wet.set(max(0.0, min(1.0, dry_wet)))
 
     def set_phase_xy(self, x: float, y: float):
         with self._lock:
@@ -116,6 +154,68 @@ class StreamWorker(QThread):
             if not (0 <= index < len(self._slots)):
                 return
             self._pending_model_changes.append((index, model_path))
+
+    def set_slot_enabled(self, index: int, enabled: bool):
+        with self._lock:
+            if 0 <= index < len(self._slots):
+                self._slots[index].is_active.set(enabled)
+
+    def set_slot_input_mode(self, index: int, mode: str):
+        with self._lock:
+            if 0 <= index < len(self._slots):
+                self._slots[index].input_mode.set(mode)
+
+    def set_slot_audio_file(self, index: int, path: str):
+        with self._lock:
+            if not (0 <= index < len(self._slots)):
+                return
+            slot = self._slots[index]
+            slot.audio_file_path = path
+            slot.encoded_latents = None
+            slot.raw_audio = None
+            slot.latent_position = 0
+            slot.audio_sample_pos = 0
+
+        # Encode off the lock so the audio thread isn't blocked
+        self._encode_audio_for_slot(index, path)
+
+    def _encode_audio_for_slot(self, index: int, path: str):
+        import torch
+        import soundfile as sf
+        import numpy as np
+
+        slot = self._slots[index]
+        if slot.model is None:
+            # Model not loaded yet; encoding will happen when model loads
+            return
+
+        try:
+            audio, file_sr = sf.read(path, dtype="float32", always_2d=False)
+            if audio.ndim > 1:
+                audio = audio.mean(axis=1)
+
+            model_sr = slot.model_sr or self._sample_rate
+            if file_sr != model_sr:
+                import torchaudio
+                audio_t = torch.from_numpy(audio).unsqueeze(0)
+                resampler = torchaudio.transforms.Resample(file_sr, model_sr)
+                audio = resampler(audio_t).squeeze(0).numpy()
+
+            audio_t = torch.from_numpy(audio).unsqueeze(0).unsqueeze(0)  # (1, 1, T)
+            with torch.no_grad():
+                encoded = slot.model.encode(audio_t)
+                if isinstance(encoded, (tuple, list)):
+                    encoded = encoded[0]
+
+            with self._lock:
+                if slot.audio_file_path == path:   # still the same file
+                    slot.encoded_latents = encoded
+                    slot.raw_audio = audio
+                    slot.latent_position = 0
+                    slot.audio_sample_pos = 0
+            self.log.emit("INFO", f"Slot {index + 1}: audio encoded ({encoded.shape[-1]} frames)")
+        except Exception as exc:
+            self.warning.emit(f"Slot {index + 1}: audio encode failed — {exc}")
 
     def _get_active_slots(self):
         with self._lock:
@@ -166,18 +266,16 @@ class StreamWorker(QThread):
         slot.latent_size = latent_size
         slot.latent_length = latent_length
         slot.output_length = output_length
-        slot.model_sr = None
-        name_match = re.search(r"_r(\d+)_", model_path)
-        if name_match:
-            try:
-                slot.model_sr = int(name_match.group(1))
-            except ValueError:
-                slot.model_sr = None
+        slot.model_sr = _detect_model_sr(model, model_path)
 
         slot.prev_z = None
         slot.cached_audio = None
         slot.is_active.set(True)
         slot.status_var.set("Active")
+
+        # If a file was already picked before the model loaded, encode it now
+        if slot.audio_file_path and slot.encoded_latents is None:
+            self._encode_audio_for_slot(index, slot.audio_file_path)
 
     def _clear_slot_model(self, index: int):
         slot = self._slots[index]

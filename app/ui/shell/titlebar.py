@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel
 from PySide6.QtCore import Qt, QPoint
-from PySide6.QtGui import QPainter, QColor, QLinearGradient
+from PySide6.QtGui import QPainter, QColor
 
 BG2   = "#28302b"
 BG3   = "#2f3832"
@@ -10,11 +10,14 @@ ACID  = "#a8e63d"
 
 
 class _TrafficDot(QWidget):
-    def __init__(self, color: str, border: str, parent=None):
+    def __init__(self, color: str, border: str, callback=None, parent=None):
         super().__init__(parent)
         self._color = QColor(color)
         self._border = QColor(border)
+        self._callback = callback
         self.setFixedSize(12, 12)
+        if callback:
+            self.setCursor(Qt.PointingHandCursor)
 
     def paintEvent(self, event):
         p = QPainter(self)
@@ -23,6 +26,10 @@ class _TrafficDot(QWidget):
         p.setBrush(self._color)
         p.drawEllipse(1, 1, 10, 10)
         p.end()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton and self._callback:
+            self._callback()
 
 
 class TitleBar(QWidget):
@@ -40,9 +47,8 @@ class TitleBar(QWidget):
         dl = QHBoxLayout(dots)
         dl.setContentsMargins(0, 0, 0, 0)
         dl.setSpacing(7)
-        dl.addWidget(_TrafficDot("#ae3e32", "#7a2820"))  # close (red)
-        dl.addWidget(_TrafficDot("#cc9a14", "#9a7210"))  # minimize (amber)
-        dl.addWidget(_TrafficDot("#4eb840", "#369028"))  # zoom (green)
+        dl.addWidget(_TrafficDot("#ae3e32", "#7a2820", lambda: self.window().close()))
+        dl.addWidget(_TrafficDot("#cc9a14", "#9a7210", lambda: self.window().showMinimized()))
         layout.addWidget(dots)
 
         # Centered title
@@ -56,7 +62,7 @@ class TitleBar(QWidget):
 
         # Spacer to balance traffic lights
         spacer = QWidget()
-        spacer.setFixedWidth(60)
+        spacer.setFixedWidth(38)
         layout.addWidget(spacer)
 
         self.setStyleSheet(

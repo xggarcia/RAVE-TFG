@@ -1,6 +1,4 @@
 """Phase anchors page — generate latent anchors + PCA scatter preview."""
-import math
-import random
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QFrame,
     QPushButton, QLabel, QLineEdit,
@@ -20,7 +18,6 @@ try:
 except ImportError:
     _HAS_PG = False
 
-# Named anchor colours matching the mock hues
 _ANCHOR_STYLES = [
     ("#a8e63d", "intro"),
     ("#40d0d8", "verse"),
@@ -29,18 +26,6 @@ _ANCHOR_STYLES = [
     ("#e0406a", "outro"),
 ]
 
-
-def _placeholder_scatter():
-    """Return (x, y, color, size) for deterministic placeholder points."""
-    rng = random.Random(42)
-    centers = [(-1.2, 0.8), (1.1, 0.9), (1.2, -0.9), (-1.1, -0.9), (0.0, 0.0)]
-    brushes, xs, ys = [], [], []
-    for (cx, cy), (color, _) in zip(centers, _ANCHOR_STYLES):
-        for _ in range(40):
-            xs.append(cx + rng.gauss(0, 0.28))
-            ys.append(cy + rng.gauss(0, 0.28))
-            brushes.append(pg.mkBrush(color + "70"))
-    return xs, ys, brushes
 
 
 class _ScatterPanel(QWidget):
@@ -70,34 +55,17 @@ class _ScatterPanel(QWidget):
             self._plot.setMouseEnabled(x=False, y=False)
             self._plot.setMenuEnabled(False)
 
-            # Placeholder scatter cloud
-            xs, ys, brushes = _placeholder_scatter()
-            scatter = pg.ScatterPlotItem(
-                x=xs, y=ys,
-                size=5, pen=pg.mkPen(None), brush=brushes,
+            self._empty_txt = pg.TextItem(
+                text="Generate anchors to see the latent space map",
+                color=FG3, anchor=(0.5, 0.5),
             )
-            self._plot.addItem(scatter)
-
-            # Anchor dots + labels
-            for (cx, cy), (color, label) in zip(
-                [(-1.2, 0.8), (1.1, 0.9), (1.2, -0.9), (-1.1, -0.9), (0.0, 0.0)],
-                _ANCHOR_STYLES,
-            ):
-                dot = pg.ScatterPlotItem(
-                    x=[cx], y=[cy],
-                    size=12,
-                    pen=pg.mkPen(color, width=1),
-                    brush=pg.mkBrush(color),
-                )
-                self._plot.addItem(dot)
-                txt = pg.TextItem(text=label, color=color,
-                                  anchor=(0, 1))
-                txt.setFont(pg.QtGui.QFont("JetBrains Mono", 8))
-                txt.setPos(cx + 0.06, cy + 0.06)
-                self._plot.addItem(txt)
+            self._empty_txt.setFont(pg.QtGui.QFont("JetBrains Mono", 9))
+            self._empty_txt.setPos(0, 0)
+            self._plot.addItem(self._empty_txt)
 
             layout.addWidget(self._plot)
         else:
+            self._empty_txt = None
             fb = _lbl("pyqtgraph not installed — install it to see the scatter plot.",
                        size=11, color=FG3)
             fb.setAlignment(Qt.AlignCenter)
@@ -117,6 +85,7 @@ class _ScatterPanel(QWidget):
         if not _HAS_PG or not pca_data:
             return
         self._plot.clear()
+        self._empty_txt = None
         colors = [s[0] for s in _ANCHOR_STYLES]
         for i, phase in enumerate(pca_data):
             color = colors[i % len(colors)]
@@ -218,8 +187,8 @@ class AnchorsPage(QWidget):
         self._order_edit.setToolTip("Auto-filled from folder names. Edit to reorder (comma-separated).")
         body.addWidget(Field("Phase order", inline=True).add(self._order_edit))
 
-        self._out = FileInput(placeholder="~/anchors/model_phases.json", directory=False, save=True)
-        body.addWidget(Field("Output", inline=True).add(self._out))
+        self._out = FileInput(placeholder="~/anchors/", directory=True)
+        body.addWidget(Field("Output folder", hint="Files named after the model automatically.", inline=True).add(self._out))
 
         body.addStretch()
         return panel
@@ -246,7 +215,11 @@ class AnchorsPage(QWidget):
         self._prog.start("Generating phase anchors…")
 
         from src.phase_workflow import generate_anchors_only
-        self._worker = DatasetWorker(generate_anchors_only, model, base)
+        out_dir = self._out.path or None
+        order_text = self._order_edit.text().strip()
+        phase_labels = [p.strip() for p in order_text.split(",") if p.strip()] or None
+        self._worker = DatasetWorker(generate_anchors_only, model, base,
+                                     phase_labels=phase_labels, output_dir=out_dir)
         self._worker.log.connect(self._prog.append_log)
         self._worker.finished.connect(self._on_done)
         self._worker.start()
@@ -258,7 +231,9 @@ class AnchorsPage(QWidget):
         self._worker = None
         if ok:
             import json, os
-            pca_path = os.path.splitext(self._model.path)[0] + "_phases_pca.json"
+            model_stem = os.path.splitext(os.path.basename(self._model.path))[0]
+            out_dir = self._out.path or os.path.dirname(self._model.path)
+            pca_path = os.path.join(out_dir, f"{model_stem}_phases_pca.json")
             if os.path.exists(pca_path):
                 try:
                     with open(pca_path, encoding="utf-8") as f:

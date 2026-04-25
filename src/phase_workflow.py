@@ -192,7 +192,7 @@ def phase_train_workflow(
     return exported_path, anchors_path
 
 
-def generate_anchors_only(model_path, audio_base_path, phase_labels=None, sr=44100):
+def generate_anchors_only(model_path, audio_base_path, phase_labels=None, sr=44100, output_dir=None):
     """Generate phase anchors for an already-exported model.
 
     Useful when the model was trained with the normal workflow and you
@@ -229,7 +229,12 @@ def generate_anchors_only(model_path, audio_base_path, phase_labels=None, sr=441
         print("[X] Not enough phases encoded.")
         return None
 
-    anchors_path = os.path.splitext(model_path)[0] + "_phases.json"
+    import json
+    model_stem = os.path.splitext(os.path.basename(model_path))[0]
+    out_dir = output_dir if output_dir and os.path.isdir(output_dir) else os.path.dirname(model_path)
+    os.makedirs(out_dir, exist_ok=True)
+
+    anchors_path = os.path.join(out_dir, f"{model_stem}_phases.json")
     save_phase_anchors(anchors, anchors_path)
     print(f"[OK] Phase anchors saved: {anchors_path}")
     print(f"     Phases: {' -> '.join(a['label'] for a in anchors)}")
@@ -237,9 +242,8 @@ def generate_anchors_only(model_path, audio_base_path, phase_labels=None, sr=441
     # Compute 2-D PCA scatter for the UI visualisation
     print("[*] Computing PCA projection for 2D map…")
     try:
-        import json
         pca_data = compute_pca_scatter(model, phase_folders, anchors, sr=sr)
-        pca_path = os.path.splitext(model_path)[0] + "_phases_pca.json"
+        pca_path = os.path.join(out_dir, f"{model_stem}_phases_pca.json")
         with open(pca_path, "w", encoding="utf-8") as f:
             json.dump(pca_data, f)
         print(f"[OK] PCA scatter saved: {pca_path}")

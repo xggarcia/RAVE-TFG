@@ -156,10 +156,25 @@ class DatasetPage(QWidget):
         self._stack = QStackedWidget()
         self._detail_widgets: dict[str, QWidget] = {}
 
+        do_all = DoAllDetail()
+        preview = PreviewSelectDetail()
+        do_all.previewReady.connect(
+            lambda folder, save_path: (
+                preview.load_folder(folder, save_path),
+                self._navigate("preview"),
+            )
+        )
+        preview.selectionSaved.connect(
+            lambda _path: (
+                self._navigate("do_all"),
+                do_all._run(),
+            )
+        )
+
         panels = [
-            ("do_all",    DoAllDetail()),
+            ("do_all",    do_all),
             ("first",     FirstDownloadDetail()),
-            ("preview",   PreviewSelectDetail()),
+            ("preview",   preview),
             ("final",     FinalDownloadDetail()),
             ("normalize", NormalizeDetail()),
             ("merge",     MergeDetail()),

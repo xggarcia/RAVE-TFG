@@ -181,6 +181,33 @@ def download_sound_by_id(sound_id: str, api_key: str, output_dir: Path, skip_exi
 		return False
 
 
+def download_from_csv(
+    csv_path: Path,
+    output_dir: Path,
+    api_key: str,
+    skip_existing: bool = True,
+) -> tuple[int, int]:
+    """Read sound IDs from csv_path and download each one. Returns (ok, total)."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        sound_ids = _read_sound_ids(csv_path)
+    except Exception as exc:
+        print(f"Could not read CSV: {exc}")
+        return 0, 0
+
+    if not sound_ids:
+        print("No sound IDs found in CSV.")
+        return 0, 0
+
+    print(f"Found {len(sound_ids)} sound ID(s). Downloading into: {output_dir}")
+    ok = 0
+    for idx, sound_id in enumerate(sound_ids, 1):
+        print(f"\n[{idx}/{len(sound_ids)}] {sound_id}")
+        if download_sound_by_id(sound_id, api_key, output_dir, skip_existing):
+            ok += 1
+    return ok, len(sound_ids)
+
+
 def parse_args() -> argparse.Namespace:
 	parser = argparse.ArgumentParser(description="Download Freesound sounds from IDs CSV.")
 	parser.add_argument(

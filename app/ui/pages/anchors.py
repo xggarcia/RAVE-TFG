@@ -109,30 +109,38 @@ class _ScatterPanel(QWidget):
         caption.setContentsMargins(0, 6, 0, 10)
         layout.addWidget(caption)
 
-    def update_from_anchors(self, anchors: list[dict]):
-        """Refresh plot with real anchor data after generation."""
-        if not _HAS_PG or not anchors:
+    def update_from_pca(self, pca_data: list[dict]):
+        """Refresh plot with real PCA-projected latent data.
+
+        pca_data: list of {"label": str, "points": [[x,y],...], "anchor_xy": [x,y]}
+        """
+        if not _HAS_PG or not pca_data:
             return
         self._plot.clear()
         colors = [s[0] for s in _ANCHOR_STYLES]
-        rng = random.Random(99)
-        for i, anchor in enumerate(anchors):
+        for i, phase in enumerate(pca_data):
             color = colors[i % len(colors)]
-            cx = anchor.get("pca_x", 0.0)
-            cy = anchor.get("pca_y", 0.0)
-            xs = [cx + rng.gauss(0, 0.25) for _ in range(30)]
-            ys = [cy + rng.gauss(0, 0.25) for _ in range(30)]
-            sc = pg.ScatterPlotItem(x=xs, y=ys, size=4,
-                                    pen=pg.mkPen(None),
-                                    brush=pg.mkBrush(color + "60"))
-            self._plot.addItem(sc)
-            dot = pg.ScatterPlotItem(x=[cx], y=[cy], size=12,
-                                     pen=pg.mkPen(color, width=1),
-                                     brush=pg.mkBrush(color))
+            pts = phase.get("points", [])
+            if pts:
+                xs = [p[0] for p in pts]
+                ys = [p[1] for p in pts]
+                sc = pg.ScatterPlotItem(
+                    x=xs, y=ys, size=3,
+                    pen=pg.mkPen(None),
+                    brush=pg.mkBrush(color + "55"),
+                )
+                self._plot.addItem(sc)
+            ax, ay = phase.get("anchor_xy", [0.0, 0.0])
+            dot = pg.ScatterPlotItem(
+                x=[ax], y=[ay], size=13,
+                pen=pg.mkPen(color, width=1.5),
+                brush=pg.mkBrush(color),
+            )
             self._plot.addItem(dot)
-            txt = pg.TextItem(text=anchor.get("label", f"phase{i}"),
-                               color=color, anchor=(0, 1))
-            txt.setPos(cx + 0.06, cy + 0.06)
+            txt = pg.TextItem(text=phase.get("label", f"phase{i}"),
+                              color=color, anchor=(0, 1))
+            txt.setFont(pg.QtGui.QFont("JetBrains Mono", 8))
+            txt.setPos(ax + 0.02, ay + 0.02)
             self._plot.addItem(txt)
 
 
@@ -248,3 +256,13 @@ class AnchorsPage(QWidget):
         self._prog.finish(ok, msg)
         self._gen_btn.setEnabled(True)
         self._worker = None
+        if ok:
+            import json, os
+            pca_path = os.path.splitext(self._model.path)[0] + "_phases_pca.json"
+            if os.path.exists(pca_path):
+                try:
+                    with open(pca_path, encoding="utf-8") as f:
+                        pca_data = json.load(f)
+                    self._scatter.update_from_pca(pca_data)
+                except Exception as exc:
+                    self._prog.append_log(f"[WARN] Could not load PCA scatter: {exc}")

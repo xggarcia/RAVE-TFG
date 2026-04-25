@@ -1,4 +1,5 @@
 from PySide6.QtCore import Qt, Slot
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -8,10 +9,20 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
+
+EXTRA_CONFIGS = [
+    ("noise",    "noise injection"),
+    ("causal",   "causal convolutions"),
+    ("snake",    "snake activations"),
+    ("hinge",    "hinge discriminator"),
+    ("descript", "descript discriminator"),
+]
+DEFAULT_ON = {"noise", "causal"}
 
 from app.ui.pages._train_live import LivePanel
 from app.ui.widgets.form import (
@@ -33,10 +44,53 @@ from app.ui.widgets.form import (
     PageHeader,
     Panel,
     RadioGroup,
+    Toggle,
     _lbl,
     section_title,
 )
 from app.ui.pages._workflow_widgets import StageRow, StageState
+
+
+class _ConfigChip(QWidget):
+    def __init__(self, key: str, desc: str, on: bool = False, parent=None):
+        super().__init__(parent)
+        self.key = key
+        self._on = on
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedHeight(36)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.setMinimumWidth(80)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 0, 10, 0)
+        layout.setSpacing(6)
+        self._key_lbl = _lbl(key, size=11, color=ACID if on else FG1, mono=True)
+        self._desc_lbl = _lbl(f"· {desc}", size=10, color=FG3)
+        layout.addWidget(self._key_lbl)
+        layout.addWidget(self._desc_lbl)
+
+    @property
+    def is_on(self) -> bool:
+        return self._on
+
+    def mousePressEvent(self, event):
+        self._on = not self._on
+        self._key_lbl.setStyleSheet(
+            f"color:{ACID if self._on else FG1}; font-size:11px; {MONO} background:transparent;"
+        )
+        self.update()
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = self.rect().adjusted(0, 0, -1, -1)
+        if self._on:
+            p.setPen(QPen(QColor("#3a4f1a"), 1))
+            p.setBrush(QColor("#1e2d0a"))
+        else:
+            p.setPen(QPen(QColor(LINE1), 1))
+            p.setBrush(QColor(BG1))
+        p.drawRoundedRect(r, 3, 3)
+        p.end()
 from app.workers.export_worker import ExportWorker
 from app.workers.preprocess_worker import PreprocessWorker
 from app.workers.train_worker import TrainWorker
@@ -107,6 +161,8 @@ class WorkflowPage(QWidget):
         root.addWidget(scroll, 1)
 
     def _build_config(self) -> QWidget:
+        self._chips: list[_ConfigChip] = []
+
         panel = Panel()
         panel.add_header(section_title("Run configuration"), _lbl("active", 10, ACID, mono=True))
         body = panel.body_layout()
@@ -137,6 +193,20 @@ class WorkflowPage(QWidget):
             f"background:{BG1}; color:{FG0}; border:1px solid {LINE1}; border-radius:4px; padding:6px 10px; {MONO}"
         )
         self._destination = FileInput(placeholder="models/user_model/exported_model", directory=True)
+        self._val_every = QLineEdit("10000")
+        self._val_every.setStyleSheet(
+            f"background:{BG1}; color:{FG0}; border:1px solid {LINE1}; border-radius:4px; padding:6px 10px; {MONO}"
+        )
+        self._save_every = QLineEdit("25000")
+        self._save_every.setStyleSheet(
+            f"background:{BG1}; color:{FG0}; border:1px solid {LINE1}; border-radius:4px; padding:6px 10px; {MONO}"
+        )
+        self._export_run = FileInput(placeholder="auto-detect from training", directory=True)
+        self._streaming = Toggle(on=True)
+        self._export_name = QLineEdit("model_streaming.ts")
+        self._export_name.setStyleSheet(
+            f"background:{BG1}; color:{FG0}; border:1px solid {LINE1}; border-radius:4px; padding:6px 10px; {MONO}"
+        )
 
         widgets = [
             Field("Audio folder", inline=False).add(self._audio_input),
@@ -145,12 +215,29 @@ class WorkflowPage(QWidget):
             Field("Channels", inline=False).add(self._channels),
             Field("Max steps", inline=False).add(self._max_steps),
             Field("Batch size", inline=False).add(self._batch_size),
+            Field("Val every", inline=False).add(self._val_every),
+            Field("Save every", inline=False).add(self._save_every),
             Field("Export destination", inline=False).add(self._destination),
+            Field("Export run folder", hint="Leave blank to auto-detect after training.", inline=False).add(self._export_run),
+            Field("Streaming", hint="Required for real-time use.", inline=False).add(self._streaming),
+            Field("Output name", inline=False).add(self._export_name),
         ]
         for i, widget in enumerate(widgets):
             grid.addWidget(widget, i // 4, i % 4)
 
         body.addLayout(grid)
+
+        # Extra configs chips
+        body.addWidget(_lbl("Extra configs", size=10, color=FG2, mono=True, spacing="1px"))
+        chips_row = QHBoxLayout()
+        chips_row.setSpacing(8)
+        for key, desc in EXTRA_CONFIGS:
+            chip = _ConfigChip(key, desc, on=(key in DEFAULT_ON))
+            self._chips.append(chip)
+            chips_row.addWidget(chip)
+        chips_row.addStretch()
+        body.addLayout(chips_row)
+
         return panel
 
     def _build_timeline(self) -> QWidget:
@@ -216,19 +303,28 @@ class WorkflowPage(QWidget):
             self._log("ERR", "Select an audio folder before starting the workflow.")
             return None
         try:
-            max_steps = int(self._max_steps.text())
-            batch = int(self._batch_size.text())
+            max_steps  = int(self._max_steps.text())
+            batch      = int(self._batch_size.text())
+            val_every  = int(self._val_every.text())
+            save_every = int(self._save_every.text())
         except ValueError:
-            self._log("ERR", "Max steps and batch size must be integer values.")
+            self._log("ERR", "Max steps, batch size, val every and save every must be integers.")
             return None
+        name = self._model_name.text().strip() or "my_model"
         return {
             "audio": audio,
-            "name": self._model_name.text().strip() or "my_model",
+            "name": name,
             "config": self._config.currentText(),
             "channels": 1 if self._channels.value.startswith("Mono") else 2,
             "max_steps": max_steps,
             "batch": batch,
+            "val_every": val_every,
+            "save_every": save_every,
+            "extra_configs": [c.key for c in self._chips if c.is_on],
             "export_dest": self._destination.path or "models/user_model/exported_model",
+            "export_run": self._export_run.path or "",
+            "streaming": self._streaming.is_on,
+            "export_name": self._export_name.text().strip() or f"{name}_streaming.ts",
         }
 
     def _start_workflow(self):
@@ -290,31 +386,19 @@ class WorkflowPage(QWidget):
     def _run_train(self):
         from src.train import _detect_gpu_flag
 
+        extra = self._values["extra_configs"]
         cmd = [
-            "rave",
-            "train",
-            "--config",
-            self._values["config"],
-            "--config",
-            "noise",
-            "--config",
-            "causal",
-            "--db_path",
-            "preprocessed_data",
-            "--out_path",
-            "models/user_model/checkpoints",
-            "--name",
-            self._values["name"],
-            "--channels",
-            str(self._values["channels"]),
-            "--val_every",
-            "10000",
-            "--save_every",
-            "25000",
-            "--max_steps",
-            str(self._values["max_steps"]),
-            "--batch",
-            str(self._values["batch"]),
+            "rave", "train",
+            "--config", self._values["config"],
+            *[arg for c in extra for arg in ("--config", c)],
+            "--db_path", "preprocessed_data",
+            "--out_path", "models/user_model/checkpoints",
+            "--name", self._values["name"],
+            "--channels", str(self._values["channels"]),
+            "--val_every", str(self._values["val_every"]),
+            "--save_every", str(self._values["save_every"]),
+            "--max_steps", str(self._values["max_steps"]),
+            "--batch", str(self._values["batch"]),
         ]
         for gpu_id in _detect_gpu_flag():
             cmd.extend(["--gpu", gpu_id])
@@ -361,10 +445,10 @@ class WorkflowPage(QWidget):
 
     def _run_export(self):
         self._exp = ExportWorker(
-            run_path="",
-            output_name=f"{self._values['name']}_streaming.ts",
+            run_path=self._values["export_run"],
+            output_name=self._values["export_name"],
             destination=self._values["export_dest"],
-            streaming=True,
+            streaming=self._values["streaming"],
         )
         self._exp.log.connect(lambda m: self._log("INFO", m))
         self._exp.finished.connect(self._on_export_finished)

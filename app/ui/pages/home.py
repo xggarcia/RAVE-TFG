@@ -33,18 +33,22 @@ SECTIONS = [
         ],
     },
     {
-        "title": "Data & Training",
-        "desc": "Preprocess datasets, train models and priors, export for streaming.",
+        "title": "Core Workflow",
+        "desc": "Main pipeline: preprocess, train, and export.",
         "hue": AMBER,
         "tiles": [
-            {"id": "workflow",   "label": "Full workflow",        "sub": "preprocess → train → export"},
-            {"id": "preprocess", "label": "Preprocess dataset",   "sub": "audio → lmdb"},
-            {"id": "train",      "label": "Train model",          "sub": "resume aware"},
-            {"id": "export",     "label": "Export model",         "sub": "ts · streaming"},
-            {"id": "prior",      "label": "Train prior",          "sub": "advanced"},
-            {"id": "phase",      "label": "Phase-aware training",  "sub": "multi-phase"},
-            {"id": "anchors",    "label": "Phase anchors",         "sub": "existing model"},
             {"id": "dataset",    "label": "Dataset creation",      "sub": "wizard · 7 steps"},
+            {"id": "train",      "label": "Train model",          "sub": "pipeline: preprocess → train → export"},
+        ],
+    },
+    {
+        "title": "Training Extras",
+        "desc": "Optional advanced modules outside the main workflow.",
+        "hue": BLUE,
+        "tiles": [
+            {"id": "prior",      "label": "Train prior",          "sub": "advanced"},
+            # {"id": "phase",      "label": "Phase-aware training",  "sub": "multi-phase"},
+            {"id": "anchors",    "label": "Phase anchors",         "sub": "existing model"},
         ],
     },
     {
@@ -277,9 +281,13 @@ class HomePage(QWidget):
 
     def _build_hero(self) -> QWidget:
         hero = QWidget()
+        hero.setObjectName("homeHero")
+        hero.setAttribute(Qt.WA_StyledBackground, True)
         hero.setStyleSheet(
+            f"QWidget#homeHero {{"
             f"background: qlineargradient(x1:1,y1:0,x2:0,y2:1, stop:0 #223320, stop:1 {BG1});"
             f"border-bottom:1px solid {LINE0};"
+            f"}}"
         )
         layout = QVBoxLayout(hero)
         layout.setContentsMargins(28, 28, 28, 24)

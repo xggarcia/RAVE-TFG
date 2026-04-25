@@ -12,16 +12,18 @@ NAV = [
         ],
     },
     {
-        "group": "DATA & TRAINING",
+        "group": "CORE WORKFLOW",
         "items": [
-            {"id": "workflow",   "label": "Full Workflow"},
-            {"id": "preprocess", "label": "Preprocess"},
-            {"id": "train",      "label": "Train Model"},
-            {"id": "export",     "label": "Export Model"},
-            {"id": "prior",      "label": "Train Prior"},
-            {"id": "phase",      "label": "Phase-aware Training"},
-            {"id": "anchors",    "label": "Phase Anchors"},
             {"id": "dataset",    "label": "Dataset Creation"},
+            {"id": "train",      "label": "Train Model"},
+        ],
+    },
+    {
+        "group": "TRAINING EXTRAS",
+        "items": [
+            {"id": "prior",      "label": "Train Prior"},
+            # {"id": "phase",    "label": "Phase-aware Training"},  # disabled for now
+            {"id": "anchors",    "label": "Phase Anchors"},
         ],
     },
     {

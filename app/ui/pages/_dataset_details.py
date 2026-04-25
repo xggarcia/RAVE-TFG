@@ -89,31 +89,43 @@ class _SpineRow(QWidget):
 # ── DoAll ─────────────────────────────────────────────────────────────────────
 
 class DoAllDetail(QWidget):
+    previewReady = Signal(str, str)   # (previews_folder, save_csv_path)
+
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._worker = None
+        self._stage = 0  # 0=idle, 1=preview_dl, 2=awaiting_review, 3=final_dl, 4=done
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
 
-        hdr = _DetailHeader("Full pipeline",
-                             "Runs all four stages in sequence. You'll still need to approve/reject previews in stage 3.",
-                             "Start pipeline")
+        hdr = _DetailHeader(
+            "Full pipeline",
+            "Stage 1: download previews. Stage 2: review in the Preview step. "
+            "Stage 3: download final audio, normalize and convert.",
+            "Start pipeline",
+        )
+        hdr.run_clicked.connect(self._run)
         layout.addWidget(hdr)
 
         cols = QHBoxLayout()
         cols.setSpacing(20)
 
         stages_panel = Panel()
-        stages_panel.add_header(section_title("Pipeline progress"))
+        stages_panel.add_header(section_title("Pipeline stages"))
         stages_body = stages_panel.body_layout()
-        stages = [
-            ("Query source",     "1,842 candidates · queries.csv",         "done"),
-            ("Preview download", "1,842 previews · 186 MB",                "done"),
-            ("Manual selection", "318 / 1,842 reviewed · 124 accepted",    "running"),
-            ("Final download",   "waiting on selection",                   "pending"),
+        self._stage_rows_do: list[_SpineRow] = []
+        stages_init = [
+            ("1 · Preview download",  "fetch Freesound preview candidates",    "pending"),
+            ("2 · Manual selection",  "review in the Preview step on the left", "pending"),
+            ("3 · Final download",    "download selected audio",                "pending"),
+            ("4 · Normalize",         "target RMS loudness",                    "pending"),
+            ("5 · Convert",           "WAV mono 44 100 Hz PCM_16",              "pending"),
         ]
-        for i, (lbl, meta, status) in enumerate(stages):
-            stages_body.addWidget(_SpineRow(lbl, meta, status, i == len(stages) - 1))
+        for i, (lbl, meta, status) in enumerate(stages_init):
+            row = _SpineRow(lbl, meta, status, i == len(stages_init) - 1)
+            self._stage_rows_do.append(row)
+            stages_body.addWidget(row)
         cols.addWidget(stages_panel, 1)
 
         cfg_panel = Panel()
@@ -122,13 +134,118 @@ class DoAllDetail(QWidget):
         cfg_body = cfg_panel.body_layout()
         self._query = FileInput(placeholder="~/queries/vocals.csv", directory=False)
         self._folder = FileInput(placeholder="~/datasets/build-01/")
-        self._max_cand = _input("2000", width=80)
+        self._selection_csv_name = _input("selection", width=220)
+        self._api_key_do = _input("", width=220)
         cfg_body.addWidget(Field("Query file").add(self._query))
         cfg_body.addWidget(Field("Working folder").add(self._folder))
-        cfg_body.addWidget(Field("Max candidates").add(self._max_cand))
+        cfg_body.addWidget(Field(
+            "Selection CSV name",
+            hint="Saved to / read from the working folder as <name>.csv.",
+        ).add(self._selection_csv_name))
+        cfg_body.addWidget(Field(
+            "API key",
+            hint="Reads FREESOUND_API_KEY from .env if blank.",
+        ).add(self._api_key_do))
         cols.addWidget(cfg_panel)
         layout.addLayout(cols)
+
+        self._prog = ProgressPanel()
+        layout.addWidget(self._prog)
         layout.addStretch()
+
+    def _run(self):
+        import os
+        folder = self._folder.path
+        query  = self._query.path
+        sel_name = self._selection_csv_name.text().strip() or "selection"
+
+        if not folder:
+            self._prog.start("Missing working folder")
+            self._prog.finish(False, "Set a working folder in the configuration panel.")
+            return
+
+        sel_csv = Path(folder) / f"{sel_name}.csv"
+        api_key = self._api_key_do.text().strip() or os.getenv("FREESOUND_API_KEY", "").strip()
+
+        if query and api_key and not sel_csv.exists():
+            # Stage 1: download previews into {folder}/previews/
+            from src.database_creation.first_download_freesound import (
+                read_jobs_from_csv, download_sounds_freesound,
+            )
+            _query = query
+            _folder = folder
+            _key = api_key
+
+            def _run_stage1():
+                jobs = read_jobs_from_csv(Path(_query))
+                if not jobs:
+                    print("No download jobs found in the query CSV.")
+                    return 0, 0
+                previews_dir = Path(_folder) / "previews"
+                previews_dir.mkdir(parents=True, exist_ok=True)
+                total = 0
+                for job in jobs:
+                    job.output_dir = previews_dir
+                    if _key:
+                        job.api_key = _key
+                    total += download_sounds_freesound(job)
+                return total, len(jobs)
+
+            _previews_dir = str(Path(folder) / "previews")
+            _sel_csv = str(sel_csv)
+
+            def _on_stage1_done(ok: bool, msg: str):
+                if ok:
+                    self._prog.info(
+                        "Stage 1 done — switching to Preview step…",
+                        f"{msg}\n\nAccept/reject files in the Preview step, then press Save selection.\n"
+                        f"Selection will be saved to:  {_sel_csv}",
+                    )
+                    self.previewReady.emit(_previews_dir, _sel_csv)
+                else:
+                    self._prog.finish(False, msg)
+
+            self._prog.start("Stage 1 — downloading previews…")
+            self._worker = DatasetWorker(_run_stage1)
+            self._worker.log.connect(self._prog.append_log)
+            self._worker.finished.connect(_on_stage1_done)
+            self._worker.start()
+            return
+
+        if sel_csv.exists() and api_key:
+            # Stages 3-5: final download → normalize → convert
+            from src.database_creation.download_csv import download_from_csv
+            from src.database_creation.normalize_volume import normalize_directory
+            from src.database_creation.convert_format import convert_directory
+
+            final_dir = Path(folder) / "audio"
+            _csv = sel_csv
+            _key = api_key
+
+            def _run_stages():
+                ok, total = download_from_csv(_csv, final_dir, _key, skip_existing=True)
+                print(f"\nDownloaded {ok}/{total} files.")
+                ok2, n2 = normalize_directory(final_dir)
+                print(f"Normalized {ok2}/{n2} files.")
+                ok3, n3 = convert_directory(final_dir)
+                print(f"Converted {ok3}/{n3} files.")
+                return ok3, n3
+
+            self._prog.start("Stages 3-5: downloading, normalizing, converting…")
+            self._worker = DatasetWorker(_run_stages)
+            self._worker.log.connect(self._prog.append_log)
+            self._worker.finished.connect(lambda ok, msg: self._prog.finish(ok, msg))
+            self._worker.start()
+            return
+
+        # Guidance when required fields are missing
+        missing = []
+        if not sel_csv.exists():
+            missing.append(f"Selection CSV not found at: {sel_csv}  (run Preview step first)")
+        if not api_key:
+            missing.append("Freesound API key (set FREESOUND_API_KEY in .env or enter above)")
+        self._prog.start("Missing required fields")
+        self._prog.finish(False, "Please fill in:\n• " + "\n• ".join(missing))
 
 
 # ── First download ────────────────────────────────────────────────────────────
@@ -178,18 +295,52 @@ class FinalDownloadDetail(QWidget):
         layout.setSpacing(16)
 
         hdr = _DetailHeader("Final download", "Fetch full audio for the IDs in a selected CSV.")
+        hdr.run_clicked.connect(self._run)
         layout.addWidget(hdr)
 
         panel = Panel()
         body = panel.body_layout()
         self._csv = FileInput(placeholder="~/datasets/build-01/selection.csv", directory=False)
         self._out = FileInput(placeholder="~/datasets/build-01/audio/")
-        self._concurrency = _input("4", width=60)
         body.addWidget(Field("Selected IDs CSV", inline=True).add(self._csv))
         body.addWidget(Field("Output folder", inline=True).add(self._out))
-        body.addWidget(Field("Concurrency", inline=True).add(self._concurrency))
+        self._api_key_input = _input("", width=260)
+        body.addWidget(Field(
+            "API key",
+            hint="Reads FREESOUND_API_KEY from .env if left blank.",
+            inline=True,
+        ).add(self._api_key_input))
+        self._skip = Toggle(on=True)
+        body.addWidget(Field("Skip existing", inline=True).add(self._skip))
         layout.addWidget(panel)
+
+        self._prog = ProgressPanel()
+        layout.addWidget(self._prog)
         layout.addStretch()
+        self._worker = None
+
+    def _run(self):
+        import os
+        csv_path = self._csv.path
+        out_path = self._out.path
+        if not csv_path or not out_path:
+            return
+        api_key = (self._api_key_input.text() if self._api_key_input else "").strip()
+        if not api_key:
+            api_key = os.getenv("FREESOUND_API_KEY", "").strip()
+        if not api_key:
+            self._prog.start("Missing API key")
+            self._prog.finish(False, "Set FREESOUND_API_KEY in .env or enter it above.")
+            return
+        from src.database_creation.download_csv import download_from_csv
+        self._prog.start("Downloading audio…")
+        self._worker = DatasetWorker(
+            download_from_csv, Path(csv_path), Path(out_path), api_key,
+            self._skip.is_on,
+        )
+        self._worker.log.connect(self._prog.append_log)
+        self._worker.finished.connect(lambda ok, msg: self._prog.finish(ok, msg))
+        self._worker.start()
 
 
 # ── Normalize ─────────────────────────────────────────────────────────────────
@@ -232,8 +383,11 @@ class NormalizeDetail(QWidget):
         sl.addWidget(self._dbfs_lbl)
         sl.addStretch()
         body.addWidget(Field("Target dBFS", hint="Negative value. −14 dBFS is a common streaming target.", inline=True).add(slider_row))
-        self._inplace = Toggle(on=False)
-        body.addWidget(Field("In-place", hint="Overwrite files. Otherwise writes to ./normalized/", inline=True).add(self._inplace))
+        body.addWidget(Field(
+            "Note",
+            hint="Files are normalized in-place and saved as 16-bit WAV.",
+            inline=True,
+        ).add(_lbl("Always in-place", size=11, color=FG3)))
         layout.addWidget(panel)
 
         self._prog = ProgressPanel()
@@ -247,7 +401,7 @@ class NormalizeDetail(QWidget):
         from src.database_creation.normalize_volume import normalize_directory
         target = float(self._slider.value())
         self._prog.start("Normalizing…")
-        self._worker = DatasetWorker(normalize_directory, Path(folder), target_db=target, in_place=self._inplace.is_on)
+        self._worker = DatasetWorker(normalize_directory, Path(folder), target_db=target)
         self._worker.log.connect(self._prog.append_log)
         self._worker.finished.connect(lambda ok, msg: self._prog.finish(ok, msg))
         self._worker.start()
@@ -375,8 +529,11 @@ class ConvertDetail(QWidget):
         self._subtype = QComboBox()
         self._subtype.addItems(["PCM_16 (16-bit signed)", "PCM_24 (24-bit signed)", "PCM_32 (32-bit signed)", "FLOAT (32-bit float)"])
         body.addWidget(Field("WAV subtype", inline=True).add(self._subtype))
-        self._out = FileInput(placeholder="~/datasets/raw-44k-mono/")
-        body.addWidget(Field("Output", inline=True).add(self._out))
+        body.addWidget(Field(
+            "Note",
+            hint="Files are converted in-place (original non-WAV files are removed).",
+            inline=True,
+        ).add(_lbl("Always in-place", size=11, color=FG3)))
         layout.addWidget(panel)
 
         self._prog = ProgressPanel()
@@ -385,7 +542,6 @@ class ConvertDetail(QWidget):
 
     def _run(self):
         src = self._src.path
-        out = self._out.path
         if not src:
             return
         from src.database_creation.convert_format import convert_directory
@@ -393,7 +549,7 @@ class ConvertDetail(QWidget):
         ch = int(self._ch.value)
         subtype = self._subtype.currentText().split()[0]
         self._prog.start("Converting…")
-        self._worker = DatasetWorker(convert_directory, Path(src), Path(out) if out else None,
+        self._worker = DatasetWorker(convert_directory, Path(src),
                                      target_sr=sr, target_channels=ch, target_subtype=subtype)
         self._worker.log.connect(self._prog.append_log)
         self._worker.finished.connect(lambda ok, msg: self._prog.finish(ok, msg))

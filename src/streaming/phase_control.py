@@ -136,6 +136,72 @@ def load_phase_anchors(path):
     return anchors
 
 
+def compute_pca_scatter(model, phase_dirs, anchors, sr=44100):
+    """Encode all phase audio, PCA-project to 2D, return scatter data for the UI.
+
+    Returns a list of dicts:
+        {"label": str, "points": [[x, y], ...], "anchor_xy": [x, y]}
+    One entry per phase, points are all encoded latent frames projected to 2D.
+    """
+    import numpy as np
+    from collections import defaultdict
+    from sklearn.decomposition import PCA
+
+    audio_exts = {".wav", ".mp3", ".flac", ".ogg"}
+    all_frames: list = []
+    frame_labels: list = []
+
+    for label, folder in phase_dirs:
+        files = [
+            os.path.join(folder, f) for f in os.listdir(folder)
+            if os.path.splitext(f)[1].lower() in audio_exts
+        ]
+        for fpath in files:
+            try:
+                audio, _ = librosa.load(fpath, sr=sr, mono=True)
+                audio_tensor = torch.from_numpy(audio).float().unsqueeze(0).unsqueeze(0)
+                with torch.no_grad():
+                    z = model.encode(audio_tensor)          # (1, L, T)
+                frames = z.squeeze(0).permute(1, 0).cpu().numpy()  # (T, L)
+                all_frames.append(frames)
+                frame_labels.extend([label] * frames.shape[0])
+            except Exception as exc:
+                print(f"  [!] PCA: skipping {fpath}: {exc}")
+
+    if not all_frames:
+        return []
+
+    matrix = np.concatenate(all_frames, axis=0)            # (N, L)
+    n_comp = min(2, matrix.shape[0], matrix.shape[1])
+    pca = PCA(n_components=n_comp)
+    coords = pca.fit_transform(matrix)                     # (N, 2)
+
+    # Project each anchor mean into the same PCA space
+    anchor_2d: dict[str, list] = {}
+    for anchor in anchors:
+        lbl = anchor["label"]
+        mean_z = anchor["mean_z"].squeeze().cpu().numpy().reshape(1, -1)
+        try:
+            xy = pca.transform(mean_z)[0]
+            anchor_2d[lbl] = [float(xy[0]), float(xy[1])]
+        except Exception:
+            anchor_2d[lbl] = [0.0, 0.0]
+
+    # Group scatter points by phase
+    phase_pts: dict = defaultdict(list)
+    for (x, y), lbl in zip(coords, frame_labels):
+        phase_pts[lbl].append([float(x), float(y)])
+
+    result = []
+    for label, _ in phase_dirs:
+        result.append({
+            "label": label,
+            "points": phase_pts.get(label, []),
+            "anchor_xy": anchor_2d.get(label, [0.0, 0.0]),
+        })
+    return result
+
+
 def generate_anchors_from_folders(model, phase_dirs, sr=44100):
     """Encode phase anchors from organized audio folders.
 

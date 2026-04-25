@@ -2,71 +2,23 @@
 import sys
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QFrame,
-    QPushButton, QLineEdit, QComboBox, QSizePolicy,
+    QPushButton, QLineEdit, QComboBox, QSizePolicy, QStackedWidget,
 )
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtCore import Qt, Slot, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 
 from app.ui.widgets.form import (
     PageHeader, Panel, Field, FileInput, RadioGroup, section_title, _lbl,
-    BG0, BG1, BG2, BG3, FG0, FG1, FG2, FG3, LINE0, LINE1, ACID, ACIDBG, ACIDDIM, AMBER, MAG, MONO,
+    BG0, BG1, BG2, BG3, FG0, FG1, FG2, FG3, LINE0, LINE1, ACID, AMBER, MAG, MONO,
 )
 from app.ui.pages._train_live import LivePanel
 from app.workers.train_worker import TrainWorker
+from app.ui.pages.workflow import WorkflowPage
+from app.ui.pages.preprocess import PreprocessPage
+from app.ui.pages.export import ExportPage
 
 CONFIGS = ["v2_small", "v2", "v3", "v3_small"]
-EXTRA_CONFIGS = [
-    ("noise",    "noise injection"),
-    ("causal",   "causal convolutions"),
-    ("snake",    "snake activations"),
-    ("hinge",    "hinge discriminator"),
-    ("descript", "descript discriminator"),
-]
-DEFAULT_ON = {"noise", "causal"}
-
-
-class _ConfigChip(QWidget):
-    def __init__(self, key: str, desc: str, on: bool = False, parent=None):
-        super().__init__(parent)
-        self.key = key
-        self._on = on
-        self.setCursor(Qt.PointingHandCursor)
-        self.setFixedHeight(36)
-        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        # measure text width
-        self.setMinimumWidth(80)
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 0, 10, 0)
-        layout.setSpacing(6)
-        self._key_lbl = _lbl(key, size=11, color=ACID if on else FG1, mono=True)
-        self._desc_lbl = _lbl(f"· {desc}", size=10, color=FG3)
-        layout.addWidget(self._key_lbl)
-        layout.addWidget(self._desc_lbl)
-
-    @property
-    def is_on(self) -> bool:
-        return self._on
-
-    def mousePressEvent(self, event):
-        self._on = not self._on
-        self._key_lbl.setStyleSheet(
-            f"color:{ACID if self._on else FG1}; font-size:11px; {MONO} background:transparent;"
-        )
-        self.update()
-
-    def paintEvent(self, event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        r = self.rect().adjusted(0, 0, -1, -1)
-        if self._on:
-            p.setPen(QPen(QColor(ACIDDIM), 1))
-            p.setBrush(QColor(ACIDBG))
-        else:
-            p.setPen(QPen(QColor(LINE1), 1))
-            p.setBrush(QColor(BG1))
-        p.drawRoundedRect(r, 3, 3)
-        p.end()
+from app.ui.pages.workflow import _ConfigChip, EXTRA_CONFIGS, DEFAULT_ON  # noqa: E402
 
 
 class _ResumeBanner(QWidget):
@@ -104,7 +56,113 @@ class _ResumeBanner(QWidget):
         return self._fresh_btn
 
 
-class TrainPage(QWidget):
+PIPELINE_STEPS = [
+    ("do_all", "DO ALL", "preprocess → train → export"),
+    ("preprocess", "Preprocess", "dataset preparation only"),
+    ("train_only", "Train", "model optimization only"),
+    ("export", "Export", "torchscript export only"),
+]
+
+
+class _TrainStepItem(QWidget):
+    clicked = Signal(str)
+
+    def __init__(self, index: int, step_id: str, label: str, sub: str, parent=None):
+        super().__init__(parent)
+        self._active = False
+        self._id = step_id
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedHeight(52)
+
+        hl = QHBoxLayout(self)
+        hl.setContentsMargins(10, 8, 10, 8)
+        hl.setSpacing(10)
+
+        self._num = QWidget()
+        self._num.setFixedSize(24, 24)
+        self._num_lbl = _lbl(str(index + 1).zfill(2), size=10, color=FG2, mono=True, bold=True)
+        self._num_lbl.setAlignment(Qt.AlignCenter)
+        nl = QVBoxLayout(self._num)
+        nl.setContentsMargins(0, 0, 0, 0)
+        nl.addWidget(self._num_lbl)
+        hl.addWidget(self._num)
+
+        col = QVBoxLayout()
+        col.setSpacing(2)
+        self._lbl = _lbl(label, size=12, color=FG1)
+        self._sub = _lbl(sub, size=10, color=FG3, mono=True)
+        col.addWidget(self._lbl)
+        col.addWidget(self._sub)
+        hl.addLayout(col)
+
+    def set_active(self, active: bool):
+        self._active = active
+        color = FG0 if active else FG1
+        num_bg = ACID if active else BG2
+        num_color = "#1e2320" if active else FG2
+        self._lbl.setStyleSheet(f"color:{color}; font-size:12px; background:transparent;")
+        self._num_lbl.setStyleSheet(f"color:{num_color}; font-size:10px; {MONO} font-weight:600; background:transparent;")
+        self._num.setStyleSheet(f"background:{num_bg}; border-radius:12px;")
+        self.update()
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = self.rect().adjusted(0, 0, -1, -1)
+        if self._active:
+            p.setPen(QPen(QColor(LINE1), 1))
+            p.setBrush(QColor(BG3))
+            p.drawRoundedRect(r, 3, 3)
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(ACID))
+            p.drawRoundedRect(-1, 6, 3, r.height() - 12, 2, 2)
+        p.end()
+
+    def enterEvent(self, e):
+        if not self._active:
+            self.setStyleSheet(f"background:{BG3}; border-radius:3px;")
+
+    def leaveEvent(self, e):
+        self.setStyleSheet("")
+        self.update()
+
+    def mousePressEvent(self, e):
+        self.clicked.emit(self._id)
+
+
+class _TrainStepList(QWidget):
+    navigate = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._items: dict[str, _TrainStepItem] = {}
+        self._active = ""
+        self.setFixedWidth(260)
+        self.setStyleSheet(f"background:{BG1}; border-right:1px solid {LINE0};")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 14, 10, 14)
+        layout.setSpacing(2)
+        layout.addWidget(section_title("Pipeline"))
+        layout.addSpacing(4)
+
+        for i, (sid, label, sub) in enumerate(PIPELINE_STEPS):
+            item = _TrainStepItem(i, sid, label, sub)
+            item.clicked.connect(self.navigate.emit)
+            self._items[sid] = item
+            layout.addWidget(item)
+
+        layout.addStretch()
+
+    def set_active(self, step_id: str):
+        if self._active and self._active in self._items:
+            self._items[self._active].set_active(False)
+        self._active = step_id
+        if step_id in self._items:
+            self._items[step_id].set_active(True)
+
+
+class _TrainOnlyPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._worker: TrainWorker | None = None
@@ -370,3 +428,46 @@ class TrainPage(QWidget):
         self._start_btn.setProperty("role", "primary")
         self._start_btn.style().unpolish(self._start_btn)
         self._start_btn.style().polish(self._start_btn)
+
+
+class TrainPage(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._build()
+
+    def _build(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
+
+        self._step_list = _TrainStepList()
+        self._step_list.navigate.connect(self._navigate)
+        body.addWidget(self._step_list)
+
+        self._stack = QStackedWidget()
+        self._detail_widgets: dict[str, QWidget] = {
+            "do_all": WorkflowPage(),
+            "preprocess": PreprocessPage(),
+            "train_only": _TrainOnlyPage(),
+            "export": ExportPage(),
+        }
+        for sid, widget in self._detail_widgets.items():
+            self._stack.addWidget(widget)
+
+        body.addWidget(self._stack, 1)
+
+        root_widget = QWidget()
+        root_widget.setLayout(body)
+        root.addWidget(root_widget, 1)
+
+        self._navigate("do_all")
+
+    def _navigate(self, step_id: str):
+        if step_id not in self._detail_widgets:
+            return
+        self._stack.setCurrentWidget(self._detail_widgets[step_id])
+        self._step_list.set_active(step_id)

@@ -143,14 +143,30 @@ class _PreviewRow(QWidget):
 
 
 class PreviewSelectDetail(QWidget):
+    selectionSaved = Signal(str)   # emits CSV path; only in pipeline mode
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._rows: list[_PreviewRow] = []
         self._states: list[str] = []
         self._current: int = -1
         self._playing: int = -1
+        self._auto_save_path: str | None = None
+        self._pipeline_mode = False
         self.setFocusPolicy(Qt.StrongFocus)
         self._build()
+
+    def load_folder(self, folder_path: str, save_path: str | None = None):
+        """Load all audio files from folder recursively and optionally set auto-save path."""
+        self._auto_save_path = save_path
+        self._pipeline_mode = save_path is not None
+        paths = sorted(
+            p for p in Path(folder_path).rglob("*")
+            if p.is_file() and p.suffix.lower() in AUDIO_EXTS
+        )
+        self._load_paths(paths)
+        if self._pipeline_mode:
+            self._save_btn.setText("💾  Save & continue")
 
     def _build(self):
         layout = QVBoxLayout(self)
@@ -202,16 +218,6 @@ class PreviewSelectDetail(QWidget):
         layout.addWidget(scroll, 1)
 
         self._refresh_stats()
-
-    def _load_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Select previews folder")
-        if not folder:
-            return
-        paths = sorted(
-            p for p in Path(folder).iterdir()
-            if p.is_file() and p.suffix.lower() in AUDIO_EXTS
-        )
-        self._load_paths(paths)
 
     def _load_paths(self, paths: list[Path]):
         _stop_playback()
@@ -271,17 +277,38 @@ class PreviewSelectDetail(QWidget):
             f"<span style='color:{FG2}'>{n_pen}</span> pending"
         )
 
+    def _load_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select previews folder")
+        if not folder:
+            return
+        self._pipeline_mode = False
+        self._auto_save_path = None
+        self._save_btn.setText("💾  Save selection")
+        paths = sorted(
+            p for p in Path(folder).rglob("*")
+            if p.is_file() and p.suffix.lower() in AUDIO_EXTS
+        )
+        self._load_paths(paths)
+
     def _save_selection(self):
         if not self._rows:
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Save selection CSV", "selection.csv", "CSV files (*.csv)")
-        if not path:
-            return
+        if self._auto_save_path:
+            path = self._auto_save_path
+        else:
+            path, _ = QFileDialog.getSaveFileName(self, "Save selection CSV", "selection.csv", "CSV files (*.csv)")
+            if not path:
+                return
         with open(path, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["filename", "state"])
+            writer.writerow(["sound_id"])
             for row, state in zip(self._rows, self._states):
-                writer.writerow([row._path.name, state])
+                if state == "accepted":
+                    # sound_id is the parent directory name (set by first_download_freesound)
+                    sound_id = row._path.parent.name
+                    writer.writerow([sound_id])
+        if self._pipeline_mode:
+            self.selectionSaved.emit(path)
 
     def keyPressEvent(self, event: QKeyEvent):
         key = event.key()

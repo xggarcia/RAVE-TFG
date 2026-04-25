@@ -130,6 +130,17 @@ class ProgressPanel(QWidget):
         self._result.setStyleSheet(f"color:{color}; font-size:12px; background:transparent; padding:8px 14px;")
         self._result.show()
 
+    def info(self, title: str, message: str):
+        """Show an informational (non-error) message — dot and text stay amber."""
+        self._title_lbl.setText(title)
+        self._bar.setRange(0, 1)
+        self._bar.setValue(1)
+        self._dot.set_color(AMBER)
+        self._result.setText(message)
+        self._result.setStyleSheet(f"color:{FG1}; font-size:12px; background:transparent; padding:8px 14px;")
+        self._result.show()
+        self.show()
+
 
 class _BlinkDot(QWidget):
     def __init__(self, parent=None):

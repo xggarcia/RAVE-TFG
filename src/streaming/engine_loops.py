@@ -102,12 +102,10 @@ def generate_mixed_chunk(self, active_slots):
                         fade = max(0.0, 1.0 - slot.density_hold_frames * 0.12)
                         z = slot.held_z * fade
 
-                if slot.phase_enabled.get() and len(slot.phase_anchors) >= 2:
-                    from .phase_control import interpolate_phase, apply_phase_bias
-                    blended_mean, blended_std = interpolate_phase(
-                        slot.phase_anchors, slot.phase_value.get()
-                    )
-                    z = apply_phase_bias(z, blended_mean, blended_std)
+                map_anchor = getattr(slot, "phase_map_anchor", None)
+                if map_anchor is not None:
+                    from .phase_control import apply_phase_bias
+                    z = apply_phase_bias(z, map_anchor["mean_z"], map_anchor["std_z"])
 
                 if slot.use_prior.get() and (slot.prior_model is not None or slot.embedded_prior_available):
                     try:

@@ -88,6 +88,7 @@ class _SlotState:
         self.phase_enabled = _Var(False)
         self.phase_value = _Var(0.0)
         self.phase_anchors = []
+        self.phase_map_anchor = None   # {"mean_z": tensor, "std_z": tensor} or None
 
         self.use_prior = _Var(False)
         self.prior_model = None
@@ -261,6 +262,20 @@ class StreamWorker(QThread):
         with self._lock:
             if 0 <= index < len(self._slots):
                 self._slots[index].use_prior.set(enabled)
+
+    def set_slot_phase_map_anchor(self, index: int, mean_z: list, std_z: list):
+        import torch
+        with self._lock:
+            if not (0 <= index < len(self._slots)):
+                return
+            slot = self._slots[index]
+            if not mean_z:
+                slot.phase_map_anchor = None
+            else:
+                slot.phase_map_anchor = {
+                    "mean_z": torch.tensor(mean_z, dtype=torch.float32).unsqueeze(0).unsqueeze(-1),
+                    "std_z":  torch.tensor(std_z,  dtype=torch.float32).unsqueeze(0).unsqueeze(-1),
+                }
 
     def set_slot_phase(self, index: int, value: float):
         with self._lock:

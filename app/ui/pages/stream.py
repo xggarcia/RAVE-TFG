@@ -280,6 +280,7 @@ class StreamPage(QWidget):
         adv_panel = AdvancedSlotPanel()
         adv_panel.latentDimChanged.connect(self._on_adv_latent_dim)
         adv_panel.usePriorChanged.connect(self._on_adv_use_prior)
+        adv_panel.phaseMapClicked.connect(self._on_phase_map_clicked)
         self._adv_panel = adv_panel
 
         # Restore previous selection, or default to the first slot
@@ -548,6 +549,35 @@ class StreamPage(QWidget):
             self._worker.set_slot_anchors(index, path)
         from pathlib import Path as _P
         self.statusChanged.emit(f"Slot {index + 1} anchors → {_P(path).name}", FG2)
+        self._try_load_phase_map(index, path)
+
+    def _try_load_phase_map(self, _index: int, anchors_path: str):
+        import json, os
+        stem = os.path.splitext(anchors_path)[0]
+        # Strip "_phases" suffix to get model stem, then look for _phases_pca.json
+        pca_path = stem + "_pca.json"
+        if not os.path.exists(pca_path):
+            if hasattr(self, "_adv_panel"):
+                self._adv_panel.clear_phase_map()
+            return
+        try:
+            with open(pca_path, encoding="utf-8") as f:
+                pca_data = json.load(f)
+            with open(anchors_path, encoding="utf-8") as f:
+                anchors_raw = json.load(f)
+            anchors_data = anchors_raw.get("phase_anchors", []) if isinstance(anchors_raw, dict) else anchors_raw
+            if hasattr(self, "_adv_panel"):
+                self._adv_panel.load_phase_map(pca_data, anchors_data)
+        except Exception:
+            if hasattr(self, "_adv_panel"):
+                self._adv_panel.clear_phase_map()
+
+    @Slot(int, dict)
+    def _on_phase_map_clicked(self, index: int, blend: dict):
+        if self._worker:
+            self._worker.set_slot_phase_map_anchor(
+                index, blend.get("mean_z", []), blend.get("std_z", [])
+            )
 
     @Slot(int, str)
     def _on_slot_audio_file_changed(self, index: int, path: str):

@@ -129,7 +129,6 @@ class PhasePage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
-        self.setStyleSheet(f"background:{BG0};")
 
         self._start_btn = QPushButton("▶  Start")
         self._start_btn.setProperty("role", "primary")
@@ -149,7 +148,6 @@ class PhasePage(QWidget):
         scroll.setStyleSheet(f"QScrollArea {{ background:{BG0}; }}")
 
         content = QWidget()
-        content.setStyleSheet(f"background:{BG0};")
         cl = QVBoxLayout(content)
         cl.setContentsMargins(24, 24, 24, 24)
         cl.setSpacing(16)

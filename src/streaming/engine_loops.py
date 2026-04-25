@@ -180,6 +180,24 @@ def generate_mixed_chunk(self, active_slots):
                     z = smooth * slot.prev_z + (1 - smooth) * z
 
                 slot.prev_z = z
+
+                global_bias_var = getattr(slot, "latent_global_bias", None)
+                if global_bias_var is not None:
+                    global_bias = float(global_bias_var.get())
+                    if global_bias != 0.0:
+                        z = z + global_bias
+
+                # Per-dim latent controls (bias / scale)
+                bias_list  = getattr(slot, "latent_bias",  [])
+                scale_list = getattr(slot, "latent_scale", [])
+                if bias_list or scale_list:
+                    z = z.clone()
+                    for _dim in range(z.shape[1]):
+                        _b = bias_list[_dim]  if _dim < len(bias_list)  else 0.0
+                        _s = scale_list[_dim] if _dim < len(scale_list) else 1.0
+                        if _b != 0.0 or _s != 1.0:
+                            z[:, _dim, :] = z[:, _dim, :] * _s + _b
+
                 audio = slot.model.decode(z).cpu().numpy().flatten()
 
             if prior_chunk_used and slot.prior_chunks_generated == 0:
@@ -278,6 +296,7 @@ def producer_loop(self):
                 chunk = np.zeros(self.chunk_samples, dtype=np.float32)
             else:
                 chunk = generate_mixed_chunk(self, active_slots)
+                chunk = (chunk * getattr(self, "master_volume", 1.0)).astype(np.float32)
 
             producer_ms = (time.perf_counter() - loop_start) * 1000.0
             self.metrics["producer_ms"].append(producer_ms)
@@ -311,7 +330,7 @@ def consumer_loop(self):
                 chunk = self.audio_queue.get(timeout=timeout_s)
             except queue.Empty:
                 self.metrics["underruns"] += 1
-                chunk = self.last_good_chunk
+                chunk = self.get_last_output_chunk()
                 if chunk is None:
                     chunk = np.zeros(self.chunk_samples, dtype=np.float32)
 
@@ -320,7 +339,7 @@ def consumer_loop(self):
             write_ms = (time.perf_counter() - write_start) * 1000.0
             self.metrics["write_ms"].append(write_ms)
             self.metrics["played_chunks"] += 1
-            self.last_good_chunk = chunk
+            self.set_last_output_chunk(chunk)
 
             if self.metrics["played_chunks"] % 20 == 0:
                 log_metrics_snapshot(self)

@@ -31,9 +31,6 @@ class _DetailHeader(QWidget):
 
     def __init__(self, title: str, sub: str = "", action: str = "Run", parent=None):
         super().__init__(parent)
-        self.setStyleSheet(
-            f"background:transparent; border-bottom:1px solid {LINE0}; padding-bottom:14px;"
-        )
         hl = QHBoxLayout(self)
         hl.setContentsMargins(0, 0, 0, 14)
         hl.setSpacing(16)
@@ -48,6 +45,12 @@ class _DetailHeader(QWidget):
         btn.setFixedHeight(30)
         btn.clicked.connect(self.run_clicked)
         hl.addWidget(btn)
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setPen(QPen(QColor(LINE0), 1))
+        p.drawLine(0, self.height() - 1, self.width(), self.height() - 1)
+        p.end()
 
 
 # ── Stage spine (for DoAll) ───────────────────────────────────────────────────

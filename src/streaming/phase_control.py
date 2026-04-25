@@ -83,8 +83,13 @@ def apply_phase_bias(z, blended_mean, blended_std):
     Returns:
         Biased latent tensor, same shape as z.
     """
+    if z.shape[2] == 1:
+        # Single frame — skip normalisation, just shift toward anchor mean
+        return blended_mean + (z - z.mean(dim=1, keepdim=True)) * blended_std.clamp(min=0.01)
+
     z_mean = z.mean(dim=2, keepdim=True)
-    z_std = z.std(dim=2, keepdim=True).clamp(min=0.01)
+    # correction=0 (population std) avoids the degrees-of-freedom error when latent_length=1
+    z_std = z.std(dim=2, keepdim=True, correction=0).clamp(min=0.01)
 
     z_norm = (z - z_mean) / z_std
     return z_norm * blended_std + blended_mean

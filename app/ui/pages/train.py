@@ -117,7 +117,6 @@ class TrainPage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
-        self.setStyleSheet(f"background:{BG0};")
 
         self._reset_btn = QPushButton("Reset form")
         self._reset_btn.setFixedHeight(30)
@@ -141,7 +140,6 @@ class TrainPage(QWidget):
         scroll.setStyleSheet(f"QScrollArea {{ background:{BG0}; }}")
 
         content = QWidget()
-        content.setStyleSheet(f"background:{BG0};")
         cl = QVBoxLayout(content)
         cl.setContentsMargins(24, 24, 24, 24)
         cl.setSpacing(16)

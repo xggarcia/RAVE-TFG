@@ -62,7 +62,6 @@ class WorkflowPage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
-        self.setStyleSheet(f"background:{BG0};")
 
         self._start_btn = QPushButton("▶  Start")
         self._start_btn.setProperty("role", "primary")

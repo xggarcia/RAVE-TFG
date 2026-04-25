@@ -23,6 +23,7 @@ class StreamingEngine:
         self.stop_event = threading.Event()
         self.audio_queue = None
 
+        self.master_volume = 1.0
         self.base_decode_stride = 1
         self.max_decode_stride = 2
         self.decode_stride = 1
@@ -31,6 +32,7 @@ class StreamingEngine:
         self._overload_cycles = 0
         self._stable_cycles = 0
         self.last_good_chunk = None
+        self._last_chunk_lock = threading.Lock()
 
         self.metrics = {
             "generated_chunks": 0,
@@ -77,6 +79,16 @@ class StreamingEngine:
         self._overload_cycles = 0
         self._stable_cycles = 0
         self.last_good_chunk = None
+
+    def set_last_output_chunk(self, chunk):
+        with self._last_chunk_lock:
+            self.last_good_chunk = chunk
+
+    def get_last_output_chunk(self):
+        with self._last_chunk_lock:
+            if self.last_good_chunk is None:
+                return None
+            return self.last_good_chunk.copy()
 
     def start(self):
         self.is_running = True

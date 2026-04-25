@@ -254,7 +254,6 @@ class HomePage(QWidget):
         scroll.setStyleSheet(f"QScrollArea {{ background:{BG0}; }}")
 
         content = QWidget()
-        content.setStyleSheet(f"background:{BG0};")
         vl = QVBoxLayout(content)
         vl.setContentsMargins(0, 0, 0, 0)
         vl.setSpacing(0)
@@ -262,7 +261,6 @@ class HomePage(QWidget):
         vl.addWidget(self._build_hero())
 
         body = QWidget()
-        body.setStyleSheet(f"background:{BG0};")
         body_layout = QHBoxLayout(body)
         body_layout.setContentsMargins(28, 24, 28, 24)
         body_layout.setSpacing(24)

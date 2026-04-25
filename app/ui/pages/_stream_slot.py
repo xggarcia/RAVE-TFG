@@ -3,8 +3,9 @@ from pathlib import Path
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QComboBox, QFileDialog, QHBoxLayout, QLabel, QPushButton, QWidget
 
-from app.ui.widgets.form import ACID, AMBER, FG0, FG2, FG3, LINE0, Panel, _lbl, section_title
+from app.ui.widgets.form import ACID, AMBER, BLUE, FG0, FG2, FG3, LINE0, Panel, _lbl, section_title
 from app.ui.widgets.knob import Knob
+from app.ui.widgets.spectrogram import SpectrogramWidget
 from app.ui.widgets.vu import VUMeter
 
 _PWR_ON  = f"color:#000; background:{ACID}; border:1px solid {ACID}; border-radius:4px; font-size:10px; padding:2px 7px;"
@@ -15,11 +16,14 @@ _INPUT_INACTIVE = f"color:{FG3}; background:transparent; border:1px solid {LINE0
 
 
 class SlotPanel(Panel):
-    paramsChanged    = Signal(int, float, float, float, float)  # index, gain, temp, smooth, dry_wet
+    paramsChanged    = Signal(int, float, float, float, float, float, float)  # index, gain, temp, smooth, dry_wet, noise(0-2), bias(-1..1)
     modelChanged     = Signal(int, str)
     enabledChanged   = Signal(int, bool)   # index, enabled
     inputModeChanged = Signal(int, str)    # index, "random"|"audio"
     audioFileChanged = Signal(int, str)    # index, absolute path
+    anchorsChanged   = Signal(int, str)    # index, absolute path to .json
+    phaseChanged     = Signal(int, float)  # index, 0.0–1.0 interpolation
+    slotSelected     = Signal(int)         # index
 
     def __init__(
         self,
@@ -28,12 +32,24 @@ class SlotPanel(Panel):
         model_paths: list[str],
         selected_model: str | None,
         accent: str,
+        params: dict | None = None,
         parent=None,
     ):
         super().__init__(parent)
         self._index = index
         self._powered = False
         self._input_mode = "random"
+        p = {
+            "gain": 0.65,
+            "temp": 0.52,
+            "smooth": 0.40,
+            "dry_wet": 1.0,
+            "phase": 0.0,
+            "noise": 1.0,
+            "bias": 0.0,
+        }
+        if params:
+            p.update(params)
 
         self._pwr_btn = QPushButton("OFF")
         self._pwr_btn.setFixedSize(34, 22)
@@ -50,11 +66,19 @@ class SlotPanel(Panel):
 
         self._apply_input_style()
 
+        self._name_btn = QPushButton(slot_name)
+        self._name_btn.setFixedSize(22, 22)
+        self._name_btn.setStyleSheet(
+            f"color:{FG0}; background:transparent; border:1px solid {LINE0}; "
+            f"border-radius:3px; font-size:10px; font-family:'JetBrains Mono','Consolas',monospace;"
+        )
+        self._name_btn.clicked.connect(lambda: self.slotSelected.emit(self._index))
+
         right_row = QHBoxLayout()
         right_row.setSpacing(6)
         right_row.addWidget(self._btn_random)
         right_row.addWidget(self._btn_audio)
-        right_row.addWidget(_lbl(slot_name, 10, FG0, mono=True))
+        right_row.addWidget(self._name_btn)
         right_row.addWidget(self._pwr_btn)
 
         right_widget = QWidget()
@@ -98,6 +122,18 @@ class SlotPanel(Panel):
         self._audio_row.setVisible(False)
         picker_widget.layout().addWidget(self._audio_row)
 
+        # Anchors file picker row — always enabled
+        anchors_row = QHBoxLayout()
+        self._anchors_lbl = QLabel("No anchors")
+        self._anchors_lbl.setStyleSheet(f"color:{FG3}; font-size:10px; background:transparent;")
+        self._anchors_lbl.setMinimumWidth(200)
+        self._browse_anchors_btn = QPushButton("Load anchors…")
+        self._browse_anchors_btn.setFixedHeight(28)
+        self._browse_anchors_btn.clicked.connect(self._browse_anchors)
+        anchors_row.addWidget(self._anchors_lbl, 1)
+        anchors_row.addWidget(self._browse_anchors_btn)
+        picker_widget.layout().addLayout(anchors_row)
+
         # Controls section — disabled when slot is off
         self._controls_widget = self.add_body()
         controls = self._controls_widget.layout()
@@ -105,13 +141,18 @@ class SlotPanel(Panel):
         controls.setSpacing(10)
 
         knobs = QHBoxLayout()
-        self._gain = Knob("GAIN", 0.65, accent=accent)
-        self._temp = Knob("TEMP", 0.52, accent=accent)
-        self._smooth = Knob("SMOOTH", 0.40, accent=accent)
-        self._dry_wet = Knob("DRY/WET", 1.0, accent=AMBER)
-        for knob in (self._gain, self._temp, self._smooth, self._dry_wet):
+        self._gain = Knob("GAIN", float(p["gain"]), accent=accent)
+        self._temp = Knob("TEMP", float(p["temp"]), accent=accent)
+        self._smooth = Knob("SMOOTH", float(p["smooth"]), accent=accent)
+        self._dry_wet = Knob("DRY/WET", float(p["dry_wet"]), accent=AMBER)
+        self._noise = Knob("NOISE", max(0.0, min(1.0, float(p["noise"]) / 2.0)), accent=AMBER)
+        self._bias = Knob("BIAS", max(0.0, min(1.0, (float(p["bias"]) + 1.0) / 2.0)), accent=BLUE)
+        self._phase = Knob("PHASE", float(p["phase"]), accent=BLUE)
+        for knob in (self._gain, self._temp, self._smooth, self._dry_wet, self._noise, self._bias):
             knob.valueChanged.connect(self._emit_params)
             knobs.addWidget(knob)
+        self._phase.valueChanged.connect(self._emit_phase)
+        knobs.addWidget(self._phase)
         knobs.addStretch()
         controls.addLayout(knobs)
 
@@ -120,14 +161,15 @@ class SlotPanel(Panel):
         self._vu_r = VUMeter(0.0, 0.0)
         vu_row.addWidget(self._vu_l)
         vu_row.addWidget(self._vu_r)
-        vu_row.addWidget(_lbl("spectrogram pending", 10, FG3, mono=True))
-        vu_row.addStretch()
+        self._spectrogram = SpectrogramWidget()
+        vu_row.addWidget(self._spectrogram, 1)
         controls.addLayout(vu_row)
 
         self.set_available_models(model_paths, selected_model)
 
-        # DRY/WET only meaningful in audio mode
+        # DRY/WET only meaningful in audio mode; PHASE only when anchors are loaded
         self._dry_wet.set_available(False)
+        self._phase.set_available(False)
 
         # Initial OFF — disable only the controls, browse buttons stay active
         self._controls_widget.setEnabled(False)
@@ -156,7 +198,17 @@ class SlotPanel(Panel):
         return value if value else None
 
     def _emit_params(self, _):
-        self.paramsChanged.emit(self._index, self._gain.value, self._temp.value, self._smooth.value, self._dry_wet.value)
+        noise = self._noise.value * 2.0
+        bias = self._bias.value * 2.0 - 1.0
+        self.paramsChanged.emit(
+            self._index,
+            self._gain.value,
+            self._temp.value,
+            self._smooth.value,
+            self._dry_wet.value,
+            noise,
+            bias,
+        )
 
     def _emit_model(self, _):
         current = self.current_model()
@@ -199,6 +251,40 @@ class SlotPanel(Panel):
         self._dry_wet.set_available(mode == "audio")
         self.inputModeChanged.emit(self._index, mode)
 
+    def _browse_anchors(self):
+        dlg = QFileDialog(self, "Select anchors file")
+        dlg.setFileMode(QFileDialog.ExistingFile)
+        dlg.setNameFilter("Anchors (*.json)")
+        dlg.setOption(QFileDialog.DontUseNativeDialog, False)
+        if not dlg.exec():
+            return
+        files = dlg.selectedFiles()
+        if not files:
+            return
+        path = files[0]
+        self._anchors_lbl.setText(Path(path).name)
+        self._anchors_lbl.setToolTip(path)
+        self._anchors_lbl.setStyleSheet(f"color:{FG2}; font-size:10px; background:transparent;")
+        self._load_anchor_phases(path)
+        self.anchorsChanged.emit(self._index, path)
+
+    def _load_anchor_phases(self, path: str):
+        import json
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                entries = data.get("phase_anchors", data.get("anchors", list(data.values())[0] if data else []))
+            else:
+                entries = data
+            labels = [e["label"] for e in entries if isinstance(e, dict) and "label" in e]
+        except Exception:
+            labels = []
+        has_anchors = len(labels) >= 2
+        self._phase.set_available(has_anchors)
+        if has_anchors:
+            self._phase.setToolTip(f"{labels[0]} → {labels[-1]}")
+
     def _browse_audio(self):
         dlg = QFileDialog(self, "Select audio file")
         dlg.setFileMode(QFileDialog.ExistingFile)
@@ -215,6 +301,9 @@ class SlotPanel(Panel):
         self._audio_lbl.setStyleSheet(f"color:{FG2}; font-size:10px; background:transparent;")
         self.audioFileChanged.emit(self._index, path)
 
+    def _emit_phase(self, value: float):
+        self.phaseChanged.emit(self._index, value)
+
     def _apply_input_style(self):
         if self._input_mode == "random":
             self._btn_random.setStyleSheet(f"color:#000; background:{AMBER}; {_INPUT_ACTIVE} border-color:{AMBER};")
@@ -230,6 +319,22 @@ class SlotPanel(Panel):
     @property
     def input_mode(self) -> str:
         return self._input_mode
+
+    @property
+    def slot_params(self) -> dict:
+        return {
+            "gain": float(self._gain.value),
+            "temp": float(self._temp.value),
+            "smooth": float(self._smooth.value),
+            "dry_wet": float(self._dry_wet.value),
+            "phase": float(self._phase.value),
+            "noise": float(self._noise.value * 2.0),
+            "bias": float(self._bias.value * 2.0 - 1.0),
+        }
+
+    def push_spectrogram(self, audio: object):
+        import numpy as np
+        self._spectrogram.push(audio if self._powered else np.zeros(len(audio), dtype=np.float32))
 
     def set_vu(self, level: float, peak: float):
         if not self._powered:

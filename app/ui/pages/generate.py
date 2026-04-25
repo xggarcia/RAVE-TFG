@@ -46,7 +46,6 @@ class GeneratePage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
-        self.setStyleSheet(f"background:{BG0};")
 
         self._render_btn = QPushButton("▶  Render")
         self._render_btn.setProperty("role", "primary")

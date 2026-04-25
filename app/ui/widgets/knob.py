@@ -52,6 +52,14 @@ class Knob(QWidget):
     def value(self) -> float:
         return self._value
 
+    def set_value(self, value: float):
+        """Set value programmatically without emitting valueChanged."""
+        value = max(0.0, min(1.0, value))
+        self._value = value
+        self._dial._value = value
+        self._dial.update()
+        self._value_lbl.setText(f"{value:.2f}")
+
 
 class _Dial(QWidget):
     valueChanged = Signal(float)

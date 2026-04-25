@@ -30,9 +30,9 @@ from app.ui.widgets.form import (
     section_title,
 )
 from app.ui.widgets.knob import Knob
-from app.ui.widgets.phase_pad import PhasePad
 from app.ui.widgets.vu import VUMeter
 from app.ui.pages._stream_slot import SlotPanel
+from app.ui.pages._stream_advanced import AdvancedSlotPanel
 from app.workers.stream_worker import StreamWorker
 
 
@@ -43,20 +43,67 @@ class StreamPage(QWidget):
         super().__init__(parent)
         self._worker: StreamWorker | None = None
         self._models: list[str] = []
-        self._slot_assignments: list[str | None] = [None, None, None, None]
+        self._slot_assignments: list[str | None] = [None, None]
+        self._slot_anchors: list[str | None] = [None, None]
         self._state = "empty"  # empty|loading|live|error
         self._stage_rows: list[QLabel] = []
-        self._slot_widgets: list[_SlotPanel] = []
+        self._slot_widgets: list[SlotPanel] = []
         self._master_vus: tuple[VUMeter, VUMeter] | None = None
         self._latency_lbl: QLabel | None = None
+        self._selected_slot: int = -1
+        self._adv_panel: AdvancedSlotPanel | None = None
+        self._slot_latent_sizes: list[int | None] = [None, None]
+        self._slot_adv_state: list[dict] = [self._default_adv_state(), self._default_adv_state()]
+        self._slot_param_state: list[dict] = [self._default_slot_params(), self._default_slot_params()]
         self._build()
         self._refresh_models()
+
+    @staticmethod
+    def _default_adv_state(n_dims: int = 8) -> dict:
+        return {
+            "prior_on": False,
+            "scales": [1.0] * n_dims,
+            "active_dim": 0,
+        }
+
+    @staticmethod
+    def _default_slot_params() -> dict:
+        return {
+            "gain": 0.65,
+            "temp": 0.52,
+            "smooth": 0.40,
+            "dry_wet": 1.0,
+            "phase": 0.0,
+            "noise": 1.0,
+            "bias": 0.0,
+        }
+
+    def _ensure_slot_lists(self, target_len: int):
+        while len(self._slot_latent_sizes) < target_len:
+            self._slot_latent_sizes.append(None)
+        while len(self._slot_adv_state) < target_len:
+            self._slot_adv_state.append(self._default_adv_state())
+        while len(self._slot_param_state) < target_len:
+            self._slot_param_state.append(self._default_slot_params())
+
+    def _resize_adv_state(self, slot_idx: int, n_dims: int):
+        if not (0 <= slot_idx < len(self._slot_adv_state)):
+            return
+        n_dims = max(1, min(8, n_dims))
+        state = self._slot_adv_state[slot_idx]
+        old_scales = list(state.get("scales", []))
+        state["scales"] = [old_scales[i] if i < len(old_scales) else 1.0 for i in range(n_dims)]
+        state["active_dim"] = max(0, min(n_dims - 1, int(state.get("active_dim", 0))))
+
+    def _slot_is_loaded(self, index: int) -> bool:
+        if not (0 <= index < len(self._slot_assignments)):
+            return False
+        return self._slot_assignments[index] is not None and self._slot_latent_sizes[index] is not None
 
     def _build(self):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
-        self.setStyleSheet(f"background:{BG0};")
 
         self._start_btn = QPushButton("Start stream")
         self._start_btn.setProperty("role", "primary")
@@ -99,6 +146,7 @@ class StreamPage(QWidget):
         self._slot_widgets = []
         self._master_vus = None
         self._latency_lbl = None
+        self._adv_panel = None
         while self._content_layout.count():
             item = self._content_layout.takeAt(0)
             if item.widget():
@@ -113,14 +161,6 @@ class StreamPage(QWidget):
             if folder.exists():
                 candidates.extend(str(p) for p in folder.glob("*.ts"))
         self._models = sorted(candidates)
-        if self._models:
-            for i in range(4):
-                selected = self._slot_assignments[i]
-                if selected and selected in self._models:
-                    continue
-                self._slot_assignments[i] = self._models[i] if i < len(self._models) else None
-        else:
-            self._slot_assignments = [None, None, None, None]
 
         if not self._models:
             self._set_empty_state()
@@ -172,13 +212,8 @@ class StreamPage(QWidget):
         body.addWidget(_lbl("Loading models, opening audio devices, and allocating buffers.", 12, FG2))
 
         self._stage_rows = []
-        for label in [
-            "Open audio devices",
-            "Load model 1",
-            "Load model 2",
-            "Load model 3",
-            "Allocate buffers",
-        ]:
+        model_labels = [f"Load model {i + 1}" for i in range(len(self._slot_assignments))]
+        for label in ["Open audio devices", *model_labels, "Allocate buffers"]:
             row = _lbl(f"○ {label}", 11, FG3, mono=True)
             self._stage_rows.append(row)
             body.addWidget(row)
@@ -189,13 +224,16 @@ class StreamPage(QWidget):
     def _set_live_preview_state(self, streaming: bool = False):
         self._state = "live"
         self._clear_content()
+        self._ensure_slot_lists(len(self._slot_assignments))
 
         top = Panel()
         top.add_header(section_title("Master"), _lbl("LIVE", 10, ACID, mono=True))
         tb = top.body_layout()
 
         master_row = QHBoxLayout()
-        master_row.addWidget(Knob("MASTER", 0.75))
+        self._master_knob = Knob("MASTER", 0.75)
+        self._master_knob.valueChanged.connect(self._on_master_volume_changed)
+        master_row.addWidget(self._master_knob)
         vu_col = QHBoxLayout()
         vu_l = VUMeter(0.0, 0.0)
         vu_r = VUMeter(0.0, 0.0)
@@ -216,48 +254,80 @@ class StreamPage(QWidget):
         grid.setHorizontalSpacing(16)
         grid.setVerticalSpacing(16)
 
-        slots = [
-            ("A", self._slot_assignments[0], ACID),
-            ("B", self._slot_assignments[1], "#40d0d8"),
-            ("C", self._slot_assignments[2], "#d840b8"),
-            ("D", self._slot_assignments[3], FG3),
-        ]
+        _accents = [ACID, "#40d0d8", "#d840b8", AMBER, "#5090d8", "#e0406a", FG2, "#c8a060"]
 
         self._slot_widgets = []
-        for i, (name, selected_model, accent) in enumerate(slots):
-            slot = SlotPanel(i, name, self._models, selected_model, accent)
+        for i, selected_model in enumerate(self._slot_assignments):
+            name = chr(65 + i)
+            accent = _accents[i % len(_accents)]
+            slot = SlotPanel(i, name, self._models, selected_model, accent, params=self._slot_param_state[i])
             slot.paramsChanged.connect(self._on_slot_params_changed)
             slot.modelChanged.connect(self._on_slot_model_changed)
             slot.enabledChanged.connect(self._on_slot_enabled_changed)
             slot.inputModeChanged.connect(self._on_slot_input_mode_changed)
             slot.audioFileChanged.connect(self._on_slot_audio_file_changed)
+            slot.anchorsChanged.connect(self._on_slot_anchors_changed)
+            slot.phaseChanged.connect(self._on_slot_phase_changed)
+            slot.slotSelected.connect(self._select_slot)
             self._slot_widgets.append(slot)
             grid.addWidget(slot, i // 2, i % 2)
 
-        side = Panel()
-        side.add_header(section_title("Phase control"))
-        sb = side.body_layout()
-        pad = PhasePad()
-        sb.addWidget(pad)
-        coords = _lbl("x=0.50  y=0.50", 10, FG2, mono=True)
-        sb.addWidget(coords)
+        if not streaming:
+            n = len(self._slot_assignments)
+            add_btn = self._make_add_slot_btn()
+            grid.addWidget(add_btn, n // 2, n % 2)
 
-        def _update_xy(x: float, y: float):
-            coords.setText(f"x={x:.3f}  y={y:.3f}")
-            if self._worker:
-                self._worker.set_phase_xy(x, y)
+        adv_panel = AdvancedSlotPanel()
+        adv_panel.latentDimChanged.connect(self._on_adv_latent_dim)
+        adv_panel.usePriorChanged.connect(self._on_adv_use_prior)
+        self._adv_panel = adv_panel
 
-        pad.xyChanged.connect(_update_xy)
+        # Restore previous selection, or default to the first slot
+        sel = self._selected_slot if 0 <= self._selected_slot < len(self._slot_assignments) else 0
+        self._selected_slot = sel
+        name = chr(65 + sel)
+        if self._slot_is_loaded(sel):
+            adv_panel.set_slot(sel, name)
+            adv_panel.load_state(self._slot_adv_state[sel])
+        else:
+            adv_panel.set_slot_unloaded(sel, name)
 
-        row = QHBoxLayout()
-        row.addWidget(grid_wrap, 1)
-        row.addWidget(side)
-        self._content_layout.addLayout(row)
+        # Use a container widget so _clear_content can delete the whole row
+        row_w = QWidget()
+        row_w.setStyleSheet("background:transparent;")
+        row_lay = QHBoxLayout(row_w)
+        row_lay.setContentsMargins(0, 0, 0, 0)
+        row_lay.setSpacing(16)
+        row_lay.addWidget(grid_wrap, 1)
+        row_lay.addWidget(adv_panel)
+        self._content_layout.addWidget(row_w)
         self._content_layout.addStretch()
 
         has_model = any(m is not None for m in self._slot_assignments)
         self._start_btn.setEnabled(has_model and not streaming)
         self._stop_btn.setEnabled(streaming)
+
+    def _make_add_slot_btn(self) -> QWidget:
+        w = QWidget()
+        w.setStyleSheet(
+            f"background:{BG1}; border:1px dashed {LINE0}; border-radius:6px;"
+        )
+        w.setMinimumHeight(80)
+        lay = QVBoxLayout(w)
+        lay.setAlignment(Qt.AlignCenter)
+        btn = QPushButton("+  Add slot")
+        btn.setFixedSize(110, 34)
+        btn.clicked.connect(self._add_slot)
+        lay.addWidget(btn, alignment=Qt.AlignCenter)
+        return w
+
+    def _add_slot(self):
+        self._slot_assignments.append(None)
+        self._slot_anchors.append(None)
+        self._slot_latent_sizes.append(None)
+        self._slot_adv_state.append(self._default_adv_state())
+        self._slot_param_state.append(self._default_slot_params())
+        self._set_live_preview_state()
 
     def _start_stream(self):
         if self._worker:
@@ -270,11 +340,13 @@ class StreamPage(QWidget):
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
 
-        selected = [self._slot_assignments[i] for i in range(4)]
+        selected = list(self._slot_assignments)
         self._worker = StreamWorker(selected)
         self._worker.stage.connect(self._on_stage)
         self._worker.log.connect(self._on_log)
         self._worker.slotVu.connect(self._on_slot_vu)
+        self._worker.slotSpectrogram.connect(self._on_slot_spectrogram)
+        self._worker.slotInfo.connect(self._on_slot_info)
         self._worker.masterVu.connect(self._on_master_vu)
         self._worker.warning.connect(self._on_warning)
         self._worker.running.connect(self._on_running)
@@ -313,6 +385,13 @@ class StreamPage(QWidget):
         if 0 <= index < len(self._slot_widgets):
             self._slot_widgets[index].set_vu(level, peak)
 
+    @Slot(int, object)
+    def _on_slot_spectrogram(self, index: int, audio):
+        if self._state != "live":
+            return
+        if 0 <= index < len(self._slot_widgets):
+            self._slot_widgets[index].push_spectrogram(audio)
+
     @Slot(float, float, float)
     def _on_master_vu(self, left: float, right: float, latency_ms: float):
         if self._state != "live":
@@ -336,16 +415,143 @@ class StreamPage(QWidget):
             for slot in self._slot_widgets:
                 self._worker.set_slot_enabled(slot._index, slot.powered)
                 self._worker.set_slot_input_mode(slot._index, slot.input_mode)
+                p = slot.slot_params
+                self._slot_param_state[slot._index] = p
+                self._worker.set_slot_params(
+                    slot._index,
+                    gain=p["gain"],
+                    temp=p["temp"],
+                    smooth=p["smooth"],
+                    dry_wet=p["dry_wet"],
+                    noise=p["noise"],
+                    bias=p["bias"],
+                )
+                self._worker.set_slot_phase(slot._index, p["phase"])
+            for i, state in enumerate(self._slot_adv_state):
+                self._worker.set_slot_use_prior(i, bool(state.get("prior_on", False)))
+                scales = state.get("scales", [])
+                for dim, scale in enumerate(scales):
+                    self._worker.set_slot_latent_dim(i, dim, 0.0, float(scale))
+            if self._adv_panel and 0 <= self._selected_slot < len(self._slot_latent_sizes):
+                latent_size = self._slot_latent_sizes[self._selected_slot]
+                if latent_size:
+                    self._adv_panel.set_latent_size(latent_size)
         else:
             self.statusChanged.emit("Idle", FG3)
 
-    @Slot(int, float, float, float, float)
-    def _on_slot_params_changed(self, index: int, gain: float, temp: float, smooth: float, dry_wet: float):
+    def _select_slot(self, index: int):
+        if self._adv_panel is None:
+            return
+        prev = self._selected_slot
+        if 0 <= prev < len(self._slot_adv_state) and self._slot_is_loaded(prev):
+            self._slot_adv_state[prev] = self._adv_panel.dump_state()
+        self._selected_slot = index
+        # Update name-button highlight for all slots
+        for w in self._slot_widgets:
+            active = (w._index == index)
+            w._name_btn.setStyleSheet(
+                f"color:#000; background:{ACID}; border:1px solid {ACID}; "
+                f"border-radius:3px; font-size:10px; font-family:'JetBrains Mono','Consolas',monospace;"
+                if active else
+                f"color:{FG0}; background:transparent; border:1px solid {LINE0}; "
+                f"border-radius:3px; font-size:10px; font-family:'JetBrains Mono','Consolas',monospace;"
+            )
+        if prev == index:
+            return
+        name = chr(65 + index) if 0 <= index < 26 else str(index + 1)
+        if self._slot_is_loaded(index):
+            self._adv_panel.set_slot(index, name)
+            if 0 <= index < len(self._slot_adv_state):
+                self._adv_panel.load_state(self._slot_adv_state[index])
+        else:
+            self._adv_panel.set_slot_unloaded(index, name)
+
+    @Slot(int, int)
+    def _on_slot_info(self, index: int, latent_size: int):
+        if 0 <= index < len(self._slot_latent_sizes):
+            self._slot_latent_sizes[index] = latent_size
+        self._resize_adv_state(index, latent_size)
+        if self._adv_panel and index == self._selected_slot:
+            name = chr(65 + index) if 0 <= index < 26 else str(index + 1)
+            self._adv_panel.set_slot(index, name)
+            self._adv_panel.load_state(self._slot_adv_state[index])
+
+    @Slot(int, int, float)
+    def _on_adv_latent_dim(self, slot_idx: int, dim: int, scale: float):
+        if 0 <= slot_idx < len(self._slot_adv_state):
+            state = self._slot_adv_state[slot_idx]
+            scales = state.get("scales", [])
+            if 0 <= dim < len(scales):
+                scales[dim] = scale
         if self._worker:
-            self._worker.set_slot_params(index, gain=gain, temp=temp, smooth=smooth, dry_wet=dry_wet)
+            self._worker.set_slot_latent_dim(slot_idx, dim, 0.0, scale)
+
+    @Slot(int, bool)
+    def _on_adv_use_prior(self, slot_idx: int, enabled: bool):
+        if 0 <= slot_idx < len(self._slot_adv_state):
+            self._slot_adv_state[slot_idx]["prior_on"] = enabled
+        if self._worker:
+            self._worker.set_slot_use_prior(slot_idx, enabled)
+
+    @Slot(int, float, float, float, float, float, float)
+    def _on_slot_params_changed(
+        self,
+        index: int,
+        gain: float,
+        temp: float,
+        smooth: float,
+        dry_wet: float,
+        noise: float,
+        bias: float,
+    ):
+        self._select_slot(index)
+        if 0 <= index < len(self._slot_param_state):
+            self._slot_param_state[index].update(
+                {
+                    "gain": gain,
+                    "temp": temp,
+                    "smooth": smooth,
+                    "dry_wet": dry_wet,
+                    "noise": noise,
+                    "bias": bias,
+                }
+            )
+        if self._worker:
+            self._worker.set_slot_params(
+                index,
+                gain=gain,
+                temp=temp,
+                smooth=smooth,
+                dry_wet=dry_wet,
+                noise=noise,
+                bias=bias,
+            )
+
+    @Slot(float)
+    def _on_master_volume_changed(self, value: float):
+        if self._worker:
+            self._worker.set_master_volume(value)
+
+    @Slot(int, float)
+    def _on_slot_phase_changed(self, index: int, value: float):
+        self._select_slot(index)
+        if 0 <= index < len(self._slot_param_state):
+            self._slot_param_state[index]["phase"] = value
+        if self._worker:
+            self._worker.set_slot_phase(index, value)
+
+    @Slot(int, str)
+    def _on_slot_anchors_changed(self, index: int, path: str):
+        self._select_slot(index)
+        self._slot_anchors[index] = path
+        if self._worker:
+            self._worker.set_slot_anchors(index, path)
+        from pathlib import Path as _P
+        self.statusChanged.emit(f"Slot {index + 1} anchors → {_P(path).name}", FG2)
 
     @Slot(int, str)
     def _on_slot_audio_file_changed(self, index: int, path: str):
+        self._select_slot(index)
         if self._worker:
             self._worker.set_slot_audio_file(index, path)
         from pathlib import Path as _P
@@ -353,12 +559,14 @@ class StreamPage(QWidget):
 
     @Slot(int, str)
     def _on_slot_input_mode_changed(self, index: int, mode: str):
+        self._select_slot(index)
         if self._worker:
             self._worker.set_slot_input_mode(index, mode)
         self.statusChanged.emit(f"Slot {index + 1} input → {mode}", FG2)
 
     @Slot(int, bool)
     def _on_slot_enabled_changed(self, index: int, enabled: bool):
+        self._select_slot(index)
         if self._worker:
             self._worker.set_slot_enabled(index, enabled)
         state = "on" if enabled else "off"
@@ -366,8 +574,15 @@ class StreamPage(QWidget):
 
     @Slot(int, str)
     def _on_slot_model_changed(self, index: int, model_path: str):
+        self._select_slot(index)
         value = model_path or None
         self._slot_assignments[index] = value
+        if not value and 0 <= index < len(self._slot_latent_sizes):
+            self._slot_latent_sizes[index] = None
+        if not value and 0 <= index < len(self._slot_adv_state):
+            self._slot_adv_state[index] = self._default_adv_state()
+            if self._adv_panel and index == self._selected_slot:
+                self._adv_panel.load_state(self._slot_adv_state[index])
 
         if model_path and model_path not in self._models:
             self._models.append(model_path)

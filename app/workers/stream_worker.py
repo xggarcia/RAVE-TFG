@@ -1,4 +1,3 @@
-import math
 import re
 import threading
 import time
@@ -82,6 +81,10 @@ class _SlotState:
         self.held_z = None
         self.density_hold_frames = 0
 
+        self.latent_bias: list[float] = []   # per-dim additive bias
+        self.latent_scale: list[float] = []  # per-dim multiplicative scale
+        self.latent_global_bias = _Var(0.0)  # additive bias applied to all latent dims
+
         self.phase_enabled = _Var(False)
         self.phase_value = _Var(0.0)
         self.phase_anchors = []
@@ -105,13 +108,15 @@ class StreamWorker(QThread):
     failed = Signal(str, str)
     stage = Signal(str, bool, bool)  # label, done, current
     slotVu = Signal(int, float, float)
+    slotSpectrogram = Signal(int, object)   # index, np.ndarray audio chunk
+    slotInfo = Signal(int, int)             # index, latent_size
     masterVu = Signal(float, float, float)  # left, right, latency_ms
     warning = Signal(str)
     running = Signal(bool)
 
     def __init__(self, model_paths: list[str | None], sample_rate: int = 44100, block_size: int = 256):
         super().__init__()
-        self._model_paths = (model_paths[:4] + [None, None, None, None])[:4]
+        self._model_paths = list(model_paths)
         self._sample_rate = sample_rate
         self._block_size = block_size
 
@@ -119,9 +124,56 @@ class StreamWorker(QThread):
         self._lock = threading.Lock()
         self._stream = None
         self._engine = None
-        self._slots: list[_SlotState] = [_SlotState(i) for i in range(4)]
+        self._master_volume = 0.75
+        self._slots: list[_SlotState] = [_SlotState(i) for i in range(len(self._model_paths))]
         self._phase_xy = (0.5, 0.5)
         self._pending_model_changes: list[tuple[int, str | None]] = []
+
+    @staticmethod
+    def _coerce_prior_latent(z, latent_size: int, latent_length: int):
+        import torch
+
+        if isinstance(z, (tuple, list)):
+            tensors = [item for item in z if torch.is_tensor(item)]
+            if not tensors:
+                raise ValueError("Prior output tuple/list has no tensor")
+            z = tensors[0]
+
+        if not torch.is_tensor(z):
+            raise ValueError("Prior output is not a tensor")
+
+        if z.dim() == 2:
+            z = z.unsqueeze(0)
+        elif z.dim() != 3:
+            raise ValueError(f"Unsupported prior latent rank: {z.dim()}")
+
+        if z.shape[1] != latent_size and z.shape[2] == latent_size:
+            z = z.transpose(1, 2)
+
+        if z.shape[1] != latent_size:
+            raise ValueError(f"Prior latent channels mismatch: got {z.shape[1]}, expected {latent_size}")
+
+        if z.shape[2] > latent_length:
+            z = z[:, :, :latent_length]
+        elif z.shape[2] < latent_length:
+            z = torch.nn.functional.pad(z, (0, latent_length - z.shape[2]))
+
+        return z
+
+    def _find_compatible_prior_seed(self, prior_model, decoder_model, latent_size: int, latent_length: int):
+        import torch
+
+        with torch.no_grad():
+            for seed_channels in (1, 1024):
+                try:
+                    seed = torch.zeros(1, seed_channels, latent_length).float()
+                    z_out = prior_model.prior(seed)
+                    z = self._coerce_prior_latent(z_out, latent_size, latent_length)
+                    _ = decoder_model.decode(z)
+                    return seed_channels
+                except Exception:
+                    continue
+        return None
 
     def stop(self):
         self._stop_event.set()
@@ -129,7 +181,8 @@ class StreamWorker(QThread):
             self._engine.stop()
 
     def set_slot_params(self, index: int, gain: float | None = None, temp: float | None = None,
-                        smooth: float | None = None, dry_wet: float | None = None):
+                        smooth: float | None = None, dry_wet: float | None = None,
+                        noise: float | None = None, bias: float | None = None):
         with self._lock:
             if not (0 <= index < len(self._slots)):
                 return
@@ -142,6 +195,15 @@ class StreamWorker(QThread):
                 slot.smoothing.set(max(0.0, min(0.95, smooth)))
             if dry_wet is not None:
                 slot.dry_wet.set(max(0.0, min(1.0, dry_wet)))
+            if noise is not None:
+                slot.random_intensity.set(max(0.0, min(3.0, noise)))
+            if bias is not None:
+                slot.latent_global_bias.set(max(-2.0, min(2.0, bias)))
+
+    def set_master_volume(self, value: float):
+        self._master_volume = max(0.0, min(1.2, value))
+        if self._engine is not None:
+            self._engine.master_volume = self._master_volume
 
     def set_phase_xy(self, x: float, y: float):
         with self._lock:
@@ -164,6 +226,46 @@ class StreamWorker(QThread):
         with self._lock:
             if 0 <= index < len(self._slots):
                 self._slots[index].input_mode.set(mode)
+
+    def set_slot_anchors(self, index: int, path: str):
+        import json
+        import torch
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+            entries = data.get("phase_anchors", data) if isinstance(data, dict) else data
+            anchors = []
+            for e in entries:
+                mean_z = torch.tensor(e["mean_z"], dtype=torch.float32).unsqueeze(0).unsqueeze(-1)
+                std_z  = torch.tensor(e["std_z"],  dtype=torch.float32).unsqueeze(0).unsqueeze(-1)
+                anchors.append({"label": e.get("label", ""), "mean_z": mean_z, "std_z": std_z})
+        except Exception as exc:
+            self.warning.emit(f"Slot {index + 1}: failed to load anchors — {exc}")
+            return
+        with self._lock:
+            if 0 <= index < len(self._slots):
+                self._slots[index].phase_anchors = anchors
+                self._slots[index].phase_enabled.set(len(anchors) >= 2)
+
+    def set_slot_latent_dim(self, index: int, dim: int, bias: float, scale: float):
+        with self._lock:
+            if not (0 <= index < len(self._slots)):
+                return
+            slot = self._slots[index]
+            if 0 <= dim < len(slot.latent_bias):
+                slot.latent_bias[dim] = max(-2.0, min(2.0, bias))
+            if 0 <= dim < len(slot.latent_scale):
+                slot.latent_scale[dim] = max(0.0, min(3.0, scale))
+
+    def set_slot_use_prior(self, index: int, enabled: bool):
+        with self._lock:
+            if 0 <= index < len(self._slots):
+                self._slots[index].use_prior.set(enabled)
+
+    def set_slot_phase(self, index: int, value: float):
+        with self._lock:
+            if 0 <= index < len(self._slots):
+                self._slots[index].phase_value.set(max(0.0, min(1.0, value)))
 
     def set_slot_audio_file(self, index: int, path: str):
         with self._lock:
@@ -227,6 +329,53 @@ class StreamWorker(QThread):
     def _log_msg(self, message: str):
         self.log.emit("INFO", message)
 
+    @staticmethod
+    def _latent_size_hint_from_path(model_path: str) -> int | None:
+        m = re.search(r"[_\-]z(\d{1,4})(?:[_\-.]|$)", model_path, re.IGNORECASE)
+        if not m:
+            return None
+        try:
+            hinted = int(m.group(1))
+            return hinted if hinted > 0 else None
+        except ValueError:
+            return None
+
+    def _detect_model_latent_size(self, model, model_path: str) -> int:
+        import torch
+
+        # Prefer encode() output when available: it reflects the model's true latent channels.
+        for test_samples in (self._block_size, 2048, 8192):
+            try:
+                probe = torch.zeros(1, 1, test_samples).float()
+                encoded = model.encode(probe)
+                if isinstance(encoded, (tuple, list)):
+                    encoded = encoded[0]
+                if torch.is_tensor(encoded) and encoded.dim() >= 2:
+                    channels = int(encoded.shape[1])
+                    if channels > 0:
+                        return channels
+            except Exception:
+                continue
+
+        hinted = self._latent_size_hint_from_path(model_path)
+        valid_channels: list[int] = []
+        with torch.no_grad():
+            for test_channels in [1, 2, 4, 8, 16, 32, 64, 128, 256]:
+                try:
+                    test_z = torch.randn(1, test_channels, 128)
+                    _ = model.decode(test_z)
+                    valid_channels.append(test_channels)
+                except Exception:
+                    continue
+
+        if hinted is not None and hinted in valid_channels:
+            return hinted
+        if valid_channels:
+            # Some scripted decoders can accept multiple channel counts; prefer larger plausible latent size.
+            return max(valid_channels)
+
+        raise RuntimeError("Could not determine model latent channel size")
+
     def _load_slot_model(self, index: int, model_path: str):
         import torch
 
@@ -236,17 +385,7 @@ class StreamWorker(QThread):
         output_length = None
 
         with torch.no_grad():
-            for test_channels in [1, 2, 8, 16, 32, 64, 128]:
-                try:
-                    test_z = torch.randn(1, test_channels, 128)
-                    _ = model.decode(test_z)
-                    latent_size = test_channels
-                    break
-                except Exception:
-                    continue
-
-            if latent_size is None:
-                raise RuntimeError("Could not determine model latent channel size")
+            latent_size = self._detect_model_latent_size(model, model_path)
 
             while latent_length <= 16384:
                 try:
@@ -267,11 +406,33 @@ class StreamWorker(QThread):
         slot.latent_length = latent_length
         slot.output_length = output_length
         slot.model_sr = _detect_model_sr(model, model_path)
+        slot.latent_bias = [0.0] * latent_size
+        slot.latent_scale = [1.0] * latent_size
+        slot.prior_model = None
+        slot.prior_seed_channels = None
+        slot.embedded_prior_available = False
+        slot.embedded_prior_seed_channels = None
+        slot.prior_needs_warmup = True
+        slot.prior_chunks_generated = 0
+
+        if hasattr(model, "prior"):
+            embedded_seed = self._find_compatible_prior_seed(
+                prior_model=model,
+                decoder_model=model,
+                latent_size=latent_size,
+                latent_length=latent_length,
+            )
+            if embedded_seed is not None:
+                slot.embedded_prior_available = True
+                slot.embedded_prior_seed_channels = embedded_seed
+                self.log.emit("INFO", f"Slot {index + 1}: embedded prior available (seed channels: {embedded_seed})")
 
         slot.prev_z = None
         slot.cached_audio = None
         slot.is_active.set(True)
         slot.status_var.set("Active")
+
+        self.slotInfo.emit(index, latent_size)
 
         # If a file was already picked before the model loaded, encode it now
         if slot.audio_file_path and slot.encoded_latents is None:
@@ -285,6 +446,12 @@ class StreamWorker(QThread):
         slot.status_var.set("Inactive")
         slot.cached_audio = None
         slot.prev_z = None
+        slot.prior_model = None
+        slot.prior_seed_channels = None
+        slot.embedded_prior_available = False
+        slot.embedded_prior_seed_channels = None
+        slot.prior_needs_warmup = True
+        slot.prior_chunks_generated = 0
 
     def _process_pending_model_changes(self):
         with self._lock:
@@ -376,6 +543,7 @@ class StreamWorker(QThread):
 
             self.stage.emit("Allocate buffers", False, True)
             self._engine = StreamingEngine(self._log_msg, self._get_active_slots, self._schedule_ui_callback)
+            self._engine.master_volume = self._master_volume
             self._engine.configure(
                 stream=self._stream,
                 sr=self._sample_rate,
@@ -397,6 +565,7 @@ class StreamWorker(QThread):
                             audio = slot.cached_audio
                             level = float(np.sqrt(np.mean(np.square(audio))))
                             peak = float(np.max(np.abs(audio)))
+                            self.slotSpectrogram.emit(i, audio * slot.gain.get())
                         self.slotVu.emit(i, min(1.0, level * 2.0), min(1.0, peak))
 
                     if self._engine.metrics["write_ms"]:
@@ -404,9 +573,18 @@ class StreamWorker(QThread):
                     else:
                         latency = (self._block_size / self._sample_rate) * 1000.0
 
-                left = 0.35 + 0.25 * math.sin(time.perf_counter() * 2.1)
-                right = 0.33 + 0.28 * math.sin(time.perf_counter() * 1.8 + 0.2)
-                self.masterVu.emit(max(0.0, left), max(0.0, right), latency)
+                if self._engine is not None:
+                    chunk = self._engine.get_last_output_chunk()
+                else:
+                    chunk = None
+                if chunk is not None and len(chunk) > 0:
+                    rms = float(np.sqrt(np.mean(np.square(chunk))))
+                    peak = float(np.max(np.abs(chunk)))
+                    level = min(1.0, rms * 2.0)
+                    peak_level = min(1.0, peak)
+                    self.masterVu.emit(level, peak_level, latency)
+                else:
+                    self.masterVu.emit(0.0, 0.0, latency)
 
                 underruns_now = int(self._engine.metrics.get("underruns", 0))
                 if underruns_now > underruns_seen:

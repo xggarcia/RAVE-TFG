@@ -94,7 +94,7 @@ class PageHeader(QWidget):
                  actions: list[QWidget] | None = None, parent=None):
         super().__init__(parent)
         self.setFixedHeight(90 if desc else 70)
-        self.setStyleSheet(f"PageHeader {{ background:{BG1}; border-bottom:1px solid {LINE0}; }}")
+        self.setAttribute(Qt.WA_StyledBackground, False)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 14, 24, 14)
         layout.setSpacing(4)
@@ -124,6 +124,13 @@ class PageHeader(QWidget):
             row.addLayout(btn_row)
 
         layout.addLayout(row)
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.fillRect(self.rect(), QColor(BG1))
+        p.setPen(QPen(QColor(LINE0), 1))
+        p.drawLine(0, self.height() - 1, self.width(), self.height() - 1)
+        p.end()
 
 
 # ── Field ────────────────────────────────────────────────────────────────────
@@ -172,10 +179,11 @@ class FileInput(QWidget):
     path_changed = Signal(str)
 
     def __init__(self, value: str = "", placeholder: str = "Select path…",
-                 directory: bool = True, parent=None):
+                 directory: bool = True, save: bool = False, parent=None):
         super().__init__(parent)
         self._path = value
         self._dir = directory
+        self._save = save
         self.setStyleSheet("background:transparent;")
 
         hl = QHBoxLayout(self)
@@ -201,6 +209,8 @@ class FileInput(QWidget):
     def _browse(self):
         if self._dir:
             path = QFileDialog.getExistingDirectory(self, "Select folder", self._path or "")
+        elif self._save:
+            path, _ = QFileDialog.getSaveFileName(self, "Save file", self._path or "")
         else:
             path, _ = QFileDialog.getOpenFileName(self, "Select file", self._path or "")
         if path:

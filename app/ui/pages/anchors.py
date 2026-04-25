@@ -3,7 +3,7 @@ import math
 import random
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QFrame,
-    QPushButton, QLabel,
+    QPushButton, QLabel, QLineEdit,
 )
 from PySide6.QtCore import Qt, Slot
 
@@ -146,7 +146,6 @@ class AnchorsPage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
-        self.setStyleSheet(f"background:{BG0};")
 
         self._gen_btn = QPushButton("▶  Generate anchors")
         self._gen_btn.setProperty("role", "primary")
@@ -167,7 +166,6 @@ class AnchorsPage(QWidget):
         scroll.setStyleSheet(f"QScrollArea {{ background:{BG0}; }}")
 
         content = QWidget()
-        content.setStyleSheet(f"background:{BG0};")
         cl = QVBoxLayout(content)
         cl.setContentsMargins(24, 24, 24, 24)
         cl.setSpacing(16)
@@ -203,14 +201,16 @@ class AnchorsPage(QWidget):
         self._base.path_changed.connect(self._update_phase_order)
         body.addWidget(Field("Base folder", inline=True).add(self._base))
 
-        self._order_lbl = _lbl("—", size=11, color=FG0, mono=True)
-        self._order_lbl.setStyleSheet(
+        self._order_edit = QLineEdit("—")
+        self._order_edit.setStyleSheet(
             f"color:{FG0}; font-size:11px; {MONO} background:{BG1};"
             f"border:1px solid {LINE1}; border-radius:3px; padding:6px 10px;"
         )
-        body.addWidget(Field("Phase order", inline=True).add(self._order_lbl))
+        self._order_edit.setPlaceholderText("intro,verse,chorus,bridge")
+        self._order_edit.setToolTip("Auto-filled from folder names. Edit to reorder (comma-separated).")
+        body.addWidget(Field("Phase order", inline=True).add(self._order_edit))
 
-        self._out = FileInput(placeholder="~/anchors/model_phases.npz", directory=False)
+        self._out = FileInput(placeholder="~/anchors/model_phases.json", directory=False, save=True)
         body.addWidget(Field("Output", inline=True).add(self._out))
 
         body.addStretch()
@@ -221,7 +221,7 @@ class AnchorsPage(QWidget):
         if not os.path.isdir(base):
             return
         phases = sorted(d for d in os.listdir(base) if os.path.isdir(os.path.join(base, d)))
-        self._order_lbl.setText(" → ".join(phases) if phases else "—")
+        self._order_edit.setText(",".join(phases) if phases else "")
         self._phase_names = phases
 
     def _start(self):

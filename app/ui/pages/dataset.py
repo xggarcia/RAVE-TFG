@@ -130,7 +130,6 @@ class _StepList(QWidget):
 class DatasetPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setStyleSheet(f"background:{BG0};")
         self._build()
 
     def _build(self):
@@ -172,7 +171,6 @@ class DatasetPage(QWidget):
             scroll.setFrameShape(QFrame.NoFrame)
             scroll.setStyleSheet(f"QScrollArea {{ background:{BG0}; }}")
             wrapper = QWidget()
-            wrapper.setStyleSheet(f"background:{BG0};")
             wl = QVBoxLayout(wrapper)
             wl.setContentsMargins(24, 24, 24, 24)
             wl.addWidget(widget)

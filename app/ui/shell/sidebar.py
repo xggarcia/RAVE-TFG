@@ -21,7 +21,7 @@ NAV = [
     {
         "group": "TRAINING EXTRAS",
         "items": [
-            {"id": "prior",      "label": "Train Prior"},
+            # {"id": "prior",    "label": "Train Prior"},  # temporarily disabled
             # {"id": "phase",    "label": "Phase-aware Training"},  # disabled for now
             {"id": "anchors",    "label": "Phase Anchors"},
         ],

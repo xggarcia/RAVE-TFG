@@ -46,7 +46,7 @@ SECTIONS = [
         "desc": "Optional advanced modules outside the main workflow.",
         "hue": BLUE,
         "tiles": [
-            {"id": "prior",      "label": "Train prior",          "sub": "advanced"},
+            # {"id": "prior",    "label": "Train prior",          "sub": "advanced"},  # temporarily disabled
             # {"id": "phase",      "label": "Phase-aware training",  "sub": "multi-phase"},
             {"id": "anchors",    "label": "Phase anchors",         "sub": "existing model"},
         ],

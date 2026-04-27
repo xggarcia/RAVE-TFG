@@ -2,6 +2,9 @@ import re
 import threading
 import time
 import traceback
+from collections import deque
+from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QThread, Signal
@@ -129,6 +132,11 @@ class StreamWorker(QThread):
         self._slots: list[_SlotState] = [_SlotState(i) for i in range(len(self._model_paths))]
         self._phase_xy = (0.5, 0.5)
         self._pending_model_changes: list[tuple[int, str | None]] = []
+
+        self._record_lock = threading.Lock()
+        self._record_enabled = False
+        self._record_chunks = deque()
+        self._record_path: str | None = None
 
     @staticmethod
     def _coerce_prior_latent(z, latent_size: int, latent_length: int):
@@ -340,6 +348,63 @@ class StreamWorker(QThread):
 
     def _schedule_ui_callback(self, cb):
         cb()
+
+    def _on_played_chunk(self, chunk):
+        with self._record_lock:
+            if not self._record_enabled:
+                return
+            self._record_chunks.append(np.array(chunk, dtype=np.float32, copy=True))
+
+    def start_recording(self, output_path: str | None = None) -> str:
+        with self._record_lock:
+            if self._record_enabled:
+                return self._record_path or ""
+
+            if output_path:
+                path = Path(output_path)
+                path.parent.mkdir(parents=True, exist_ok=True)
+            else:
+                rec_dir = Path("outputs") / "recordings"
+                rec_dir.mkdir(parents=True, exist_ok=True)
+                stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                path = rec_dir / f"stream_recording_{stamp}.wav"
+
+            self._record_chunks.clear()
+            self._record_path = str(path)
+            self._record_enabled = True
+
+        self.log.emit("INFO", f"Recording started: {self._record_path}")
+        return self._record_path
+
+    def stop_recording(self) -> str | None:
+        with self._record_lock:
+            if not self._record_enabled:
+                return None
+            self._record_enabled = False
+            chunks = list(self._record_chunks)
+            self._record_chunks.clear()
+            out_path = self._record_path
+
+        if not out_path:
+            return None
+
+        if not chunks:
+            self.log.emit("WARN", "Recording stopped with no captured audio")
+            return out_path
+
+        import soundfile as sf
+
+        try:
+            with sf.SoundFile(out_path, mode="w", samplerate=self._sample_rate, channels=1, subtype="PCM_16") as f:
+                for chunk in chunks:
+                    if chunk is None or len(chunk) == 0:
+                        continue
+                    f.write(np.asarray(chunk, dtype=np.float32))
+            self.log.emit("INFO", f"Recording saved: {out_path}")
+        except Exception as exc:
+            self.warning.emit(f"Recording save failed: {exc}")
+
+        return out_path
 
     def _log_msg(self, message: str):
         self.log.emit("INFO", message)
@@ -559,6 +624,7 @@ class StreamWorker(QThread):
             self.stage.emit("Allocate buffers", False, True)
             self._engine = StreamingEngine(self._log_msg, self._get_active_slots, self._schedule_ui_callback)
             self._engine.master_volume = self._master_volume
+            self._engine.on_chunk_played = self._on_played_chunk
             self._engine.configure(
                 stream=self._stream,
                 sr=self._sample_rate,
@@ -610,6 +676,11 @@ class StreamWorker(QThread):
 
             if self._engine is not None:
                 self._engine.stop()
+
+            with self._record_lock:
+                rec_was_on = self._record_enabled
+            if rec_was_on:
+                self.stop_recording()
 
             if self._stream is not None:
                 self._stream.stop()

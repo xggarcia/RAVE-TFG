@@ -601,22 +601,22 @@ def data_training_menu(ctx):
         print("=" * 60)
         print("  1) Full workflow (recommended)")
         print("  2) Step-by-step tools")
-        print("  3) Train prior (advanced)")
+        # print("  3) Train prior (advanced)")  # temporarily disabled
         print("  4) Phase-aware training")
         print("  5) Generate phase anchors (existing model)")
         print("  6) Dataset creation")
         print("  8) Back")
         print("  9) Home")
 
-        choice = ctx.ask_choice("\nChoose: ", {"1", "2", "3", "4", "5", "6", "8", "9"})
+        choice = ctx.ask_choice("\nChoose: ", {"1", "2", "4", "5", "6", "8", "9"})
         if choice == "1":
             run_full_workflow(ctx)
         elif choice == "2":
             nested = data_training_steps_menu(ctx)
             if nested == "HOME":
                 return "HOME"
-        elif choice == "3":
-            run_train_prior(ctx)
+        # elif choice == "3":
+        #     run_train_prior(ctx)
         elif choice == "4":
             run_phase_training(ctx)
         elif choice == "5":

@@ -233,11 +233,22 @@ class AnchorsPage(QWidget):
             import json, os
             model_stem = os.path.splitext(os.path.basename(self._model.path))[0]
             out_dir = self._out.path or os.path.dirname(self._model.path)
-            pca_path = os.path.join(out_dir, f"{model_stem}_phases_pca.json")
-            if os.path.exists(pca_path):
-                try:
-                    with open(pca_path, encoding="utf-8") as f:
+            bundle_path = os.path.join(out_dir, f"{model_stem}_phases.json")
+            legacy_pca_path = os.path.join(out_dir, f"{model_stem}_phases_pca.json")
+            pca_data = []
+
+            try:
+                if os.path.exists(bundle_path):
+                    with open(bundle_path, encoding="utf-8") as f:
+                        bundle = json.load(f)
+                    if isinstance(bundle, dict):
+                        pca_data = bundle.get("phase_pca", [])
+
+                # Backward compatibility: old split files
+                if not pca_data and os.path.exists(legacy_pca_path):
+                    with open(legacy_pca_path, encoding="utf-8") as f:
                         pca_data = json.load(f)
-                    self._scatter.update_from_pca(pca_data)
-                except Exception as exc:
-                    self._prog.append_log(f"[WARN] Could not load PCA scatter: {exc}")
+
+                self._scatter.update_from_pca(pca_data)
+            except Exception as exc:
+                self._prog.append_log(f"[WARN] Could not load phase map preview: {exc}")

@@ -5,7 +5,6 @@ from src.phase_workflow import phase_train_workflow, generate_anchors_only
 from src.preprocess import PreprocessDataset
 from src.stream_gui import launch_gui
 from src.train import TrainModel
-from src.train_prior import TrainPrior
 from src.workflow import train_workflow
 
 from .menu_actions_generate import generate_stream_menu
@@ -23,7 +22,7 @@ def _build_menu_context():
         launch_gui_fn=launch_gui,
         workflow_fn=train_workflow,
         clean_fn=CleanUserData,
-        train_prior_fn=TrainPrior,
+        train_prior_fn=None,  # temporarily disabled
         phase_train_fn=phase_train_workflow,
         generate_anchors_fn=generate_anchors_only,
     )

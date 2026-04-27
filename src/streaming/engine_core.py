@@ -33,6 +33,7 @@ class StreamingEngine:
         self._stable_cycles = 0
         self.last_good_chunk = None
         self._last_chunk_lock = threading.Lock()
+        self.on_chunk_played = None
 
         self.metrics = {
             "generated_chunks": 0,

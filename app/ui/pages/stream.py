@@ -55,12 +55,14 @@ class StreamPage(QWidget):
         self._slot_latent_sizes: list[int | None] = [None, None]
         self._slot_adv_state: list[dict] = [self._default_adv_state(), self._default_adv_state()]
         self._slot_param_state: list[dict] = [self._default_slot_params(), self._default_slot_params()]
+        self._recording_active = False
         self._build()
         self._refresh_models()
 
     @staticmethod
     def _default_adv_state(n_dims: int = 8) -> dict:
         return {
+            # Prior is temporarily disabled in the streaming UI.
             "prior_on": False,
             "scales": [1.0] * n_dims,
             "active_dim": 0,
@@ -120,12 +122,17 @@ class StreamPage(QWidget):
         self._scan_btn.setFixedHeight(30)
         self._scan_btn.clicked.connect(self._refresh_models)
 
+        self._record_btn = QPushButton("Start rec")
+        self._record_btn.setFixedHeight(30)
+        self._record_btn.setEnabled(False)
+        self._record_btn.clicked.connect(self._toggle_recording)
+
         root.addWidget(
             PageHeader(
                 crumbs=["Generate & Stream", "Streaming GUI"],
                 title="Multi-model streaming",
                 desc="Realtime phase interpolation between RAVE models.",
-                actions=[self._scan_btn, self._stop_btn, self._start_btn],
+                actions=[self._scan_btn, self._record_btn, self._stop_btn, self._start_btn],
             )
         )
 
@@ -199,6 +206,9 @@ class StreamPage(QWidget):
         self._content_layout.addStretch()
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(False)
+        self._record_btn.setEnabled(False)
+        self._record_btn.setText("Start rec")
+        self._recording_active = False
 
     def _set_loading_state(self):
         self._state = "loading"
@@ -279,7 +289,8 @@ class StreamPage(QWidget):
 
         adv_panel = AdvancedSlotPanel()
         adv_panel.latentDimChanged.connect(self._on_adv_latent_dim)
-        adv_panel.usePriorChanged.connect(self._on_adv_use_prior)
+        # Prior toggle is temporarily disabled.
+        # adv_panel.usePriorChanged.connect(self._on_adv_use_prior)
         adv_panel.phaseMapClicked.connect(self._on_phase_map_clicked)
         self._adv_panel = adv_panel
 
@@ -307,6 +318,10 @@ class StreamPage(QWidget):
         has_model = any(m is not None for m in self._slot_assignments)
         self._start_btn.setEnabled(has_model and not streaming)
         self._stop_btn.setEnabled(streaming)
+        self._record_btn.setEnabled(streaming)
+        if not streaming:
+            self._record_btn.setText("Start rec")
+            self._recording_active = False
 
     def _make_add_slot_btn(self) -> QWidget:
         w = QWidget()
@@ -357,8 +372,34 @@ class StreamPage(QWidget):
 
     def _stop_stream(self):
         if self._worker:
+            if self._recording_active:
+                self._toggle_recording()
             self._worker.stop()
             self.statusChanged.emit("Stopping stream...", AMBER)
+
+    def _toggle_recording(self):
+        if not self._worker:
+            self.statusChanged.emit("Start streaming first to record", AMBER)
+            return
+
+        try:
+            if not self._recording_active:
+                out_path = self._worker.start_recording()
+                self._recording_active = True
+                self._record_btn.setText("Stop rec")
+                self.statusChanged.emit(f"Recording: {Path(out_path).name}", ACID)
+            else:
+                out_path = self._worker.stop_recording()
+                self._recording_active = False
+                self._record_btn.setText("Start rec")
+                if out_path:
+                    self.statusChanged.emit(f"Saved recording: {Path(out_path).name}", FG2)
+                else:
+                    self.statusChanged.emit("Recording stopped", FG2)
+        except Exception as exc:
+            self._recording_active = False
+            self._record_btn.setText("Start rec")
+            self.statusChanged.emit(f"Recording error: {exc}", FG3)
 
     @Slot(str, bool, bool)
     def _on_stage(self, label: str, done: bool, current: bool):
@@ -429,7 +470,8 @@ class StreamPage(QWidget):
                 )
                 self._worker.set_slot_phase(slot._index, p["phase"])
             for i, state in enumerate(self._slot_adv_state):
-                self._worker.set_slot_use_prior(i, bool(state.get("prior_on", False)))
+                # Prior path temporarily disabled in streaming UI.
+                # self._worker.set_slot_use_prior(i, bool(state.get("prior_on", False)))
                 scales = state.get("scales", [])
                 for dim, scale in enumerate(scales):
                     self._worker.set_slot_latent_dim(i, dim, 0.0, float(scale))
@@ -489,10 +531,11 @@ class StreamPage(QWidget):
 
     @Slot(int, bool)
     def _on_adv_use_prior(self, slot_idx: int, enabled: bool):
+        # Prior path temporarily disabled in streaming UI.
         if 0 <= slot_idx < len(self._slot_adv_state):
             self._slot_adv_state[slot_idx]["prior_on"] = enabled
-        if self._worker:
-            self._worker.set_slot_use_prior(slot_idx, enabled)
+        # if self._worker:
+        #     self._worker.set_slot_use_prior(slot_idx, enabled)
 
     @Slot(int, float, float, float, float, float, float)
     def _on_slot_params_changed(
@@ -553,21 +596,75 @@ class StreamPage(QWidget):
 
     def _try_load_phase_map(self, _index: int, anchors_path: str):
         import json, os
+
+        def _as_anchor_list(raw):
+            if isinstance(raw, list):
+                return [a for a in raw if isinstance(a, dict)]
+            if isinstance(raw, dict):
+                entries = raw.get("phase_anchors", raw.get("anchors", []))
+                if isinstance(entries, list):
+                    return [a for a in entries if isinstance(a, dict)]
+            return []
+
+        def _as_pca_list(raw):
+            if isinstance(raw, list):
+                return [p for p in raw if isinstance(p, dict)]
+            if isinstance(raw, dict):
+                entries = raw.get("phase_pca", raw.get("pca", []))
+                if isinstance(entries, list):
+                    return [p for p in entries if isinstance(p, dict)]
+            return []
+
+        def _flat_numbers(values):
+            out = []
+
+            def _walk(v):
+                if isinstance(v, (int, float)):
+                    out.append(float(v))
+                elif isinstance(v, list):
+                    for vv in v:
+                        _walk(vv)
+
+            _walk(values)
+            return out
+
         stem = os.path.splitext(anchors_path)[0]
-        # Strip "_phases" suffix to get model stem, then look for _phases_pca.json
         pca_path = stem + "_pca.json"
-        if not os.path.exists(pca_path):
-            if hasattr(self, "_adv_panel"):
-                self._adv_panel.clear_phase_map()
-            return
+
         try:
-            with open(pca_path, encoding="utf-8") as f:
-                pca_data = json.load(f)
             with open(anchors_path, encoding="utf-8") as f:
                 anchors_raw = json.load(f)
-            anchors_data = anchors_raw.get("phase_anchors", []) if isinstance(anchors_raw, dict) else anchors_raw
+
+            anchors_data = _as_anchor_list(anchors_raw)
+
+            # New single-file bundle format.
+            pca_data = _as_pca_list(anchors_raw)
+
+            # Backward compatibility: old split _phases.json + _phases_pca.json
+            if not pca_data and os.path.exists(pca_path):
+                with open(pca_path, encoding="utf-8") as f:
+                    pca_raw = json.load(f)
+                pca_data = _as_pca_list(pca_raw)
+
+            # Final fallback: show anchor-only map using first latent dims.
+            if not pca_data and anchors_data:
+                pca_data = []
+                for anchor in anchors_data:
+                    mean_vals = _flat_numbers(anchor.get("mean_z", []))
+                    x = mean_vals[0] if len(mean_vals) > 0 else 0.0
+                    y = mean_vals[1] if len(mean_vals) > 1 else 0.0
+                    pca_data.append({
+                        "label": anchor.get("label", "phase"),
+                        "points": [],
+                        "anchor_xy": [x, y],
+                    })
+                self.statusChanged.emit("Phase map loaded without PCA cloud (anchor-only fallback)", FG3)
+
             if hasattr(self, "_adv_panel"):
-                self._adv_panel.load_phase_map(pca_data, anchors_data)
+                if pca_data:
+                    self._adv_panel.load_phase_map(pca_data, anchors_data)
+                else:
+                    self._adv_panel.clear_phase_map()
         except Exception:
             if hasattr(self, "_adv_panel"):
                 self._adv_panel.clear_phase_map()
@@ -627,6 +724,9 @@ class StreamPage(QWidget):
 
     @Slot(dict)
     def _on_finished(self, summary: dict):
+        self._recording_active = False
+        self._record_btn.setText("Start rec")
+        self._record_btn.setEnabled(False)
         self.statusChanged.emit(
             f"Stream stopped · underruns={summary.get('underruns', 0)}",
             FG2,
@@ -638,6 +738,9 @@ class StreamPage(QWidget):
 
     @Slot(str, str)
     def _on_failed(self, short: str, traceback: str):
+        self._recording_active = False
+        self._record_btn.setText("Start rec")
+        self._record_btn.setEnabled(False)
         self.statusChanged.emit(short, FG3)
         self._worker = None
         self._stop_btn.setEnabled(False)

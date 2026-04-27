@@ -44,17 +44,18 @@ def build_parser():
     subparsers.add_parser("clean", help="Delete all user data (preprocessed, checkpoints, exports, outputs)")
     subparsers.add_parser("stream", help="Launch multi-model GUI streaming")
 
-    train_prior_parser = subparsers.add_parser("train_prior", help="Train a prior for a RAVE model using MSPrior")
-    train_prior_parser.add_argument("--rave", required=True, help="Path to RAVE checkpoint (.ckpt) - NOT .ts file")
-    train_prior_parser.add_argument("--audio", required=True, help="Path to audio dataset folder (same data used to train RAVE)")
-    train_prior_parser.add_argument("--name", default="my_prior", help="Name for the prior model (default: my_prior)")
-    train_prior_parser.add_argument(
-        "--config",
-        default="decoder_only",
-        choices=["decoder_only", "recurrent", "encoder_decoder", "encoder_decoder_continuous"],
-        help="MSPrior configuration (default: decoder_only)",
-    )
-    train_prior_parser.add_argument("--output", default="models/user_model/prior", help="Output path for prior (default: models/user_model/prior)")
+    # Train prior command temporarily disabled.
+    # train_prior_parser = subparsers.add_parser("train_prior", help="Train a prior for a RAVE model using MSPrior")
+    # train_prior_parser.add_argument("--rave", required=True, help="Path to RAVE checkpoint (.ckpt) - NOT .ts file")
+    # train_prior_parser.add_argument("--audio", required=True, help="Path to audio dataset folder (same data used to train RAVE)")
+    # train_prior_parser.add_argument("--name", default="my_prior", help="Name for the prior model (default: my_prior)")
+    # train_prior_parser.add_argument(
+    #     "--config",
+    #     default="decoder_only",
+    #     choices=["decoder_only", "recurrent", "encoder_decoder", "encoder_decoder_continuous"],
+    #     help="MSPrior configuration (default: decoder_only)",
+    # )
+    # train_prior_parser.add_argument("--output", default="models/user_model/prior", help="Output path for prior (default: models/user_model/prior)")
 
     phase_train_parser = subparsers.add_parser("phase_train", help="Phase-aware training: train + generate phase anchors")
     phase_train_parser.add_argument("audio_base", help="Base folder with phase subfolders (e.g. soft_rain/, rain/, storm/)")
@@ -139,16 +140,17 @@ def run_command(args):
 
         launch_gui()
 
-    elif args.command == "train_prior":
-        from src.train_prior import TrainPrior
-
-        TrainPrior(
-            rave_model_path=args.rave,
-            audio_path=args.audio,
-            prior_name=args.name,
-            config=args.config,
-            output_path=args.output,
-        )
+    # Train prior command temporarily disabled.
+    # elif args.command == "train_prior":
+    #     from src.train_prior import TrainPrior
+    #
+    #     TrainPrior(
+    #         rave_model_path=args.rave,
+    #         audio_path=args.audio,
+    #         prior_name=args.name,
+    #         config=args.config,
+    #         output_path=args.output,
+    #     )
 
     elif args.command == "phase_train":
         from src.phase_workflow import phase_train_workflow

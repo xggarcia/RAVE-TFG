@@ -19,7 +19,7 @@ import torch
 from src.preprocess import PreprocessDataset
 from src.train import TrainModel
 from src.export import ExportModel
-from src.streaming.phase_control import generate_anchors_from_folders, save_phase_anchors, compute_pca_scatter
+from src.streaming.phase_control import generate_anchors_from_folders, save_phase_bundle, compute_pca_scatter
 
 
 def discover_phase_folders(base_path):
@@ -177,7 +177,16 @@ def phase_train_workflow(
         return exported_path, None
 
     anchors_path = os.path.splitext(exported_path)[0] + "_phases.json"
-    save_phase_anchors(anchors, anchors_path)
+
+    # Save a single combined file with anchors + optional 2-D map.
+    pca_data = []
+    try:
+        print("[*] Computing PCA projection for phase map…")
+        pca_data = compute_pca_scatter(model, phase_folders, anchors, sr=sr)
+    except Exception as exc:
+        print(f"[!] PCA projection failed (non-fatal): {exc}")
+
+    save_phase_bundle(anchors, anchors_path, phase_pca=pca_data)
 
     print("\n" + "=" * 60)
     print("  Phase-Aware Training Complete")
@@ -229,25 +238,20 @@ def generate_anchors_only(model_path, audio_base_path, phase_labels=None, sr=441
         print("[X] Not enough phases encoded.")
         return None
 
-    import json
     model_stem = os.path.splitext(os.path.basename(model_path))[0]
     out_dir = output_dir if output_dir and os.path.isdir(output_dir) else os.path.dirname(model_path)
     os.makedirs(out_dir, exist_ok=True)
 
     anchors_path = os.path.join(out_dir, f"{model_stem}_phases.json")
-    save_phase_anchors(anchors, anchors_path)
-    print(f"[OK] Phase anchors saved: {anchors_path}")
-    print(f"     Phases: {' -> '.join(a['label'] for a in anchors)}")
-
-    # Compute 2-D PCA scatter for the UI visualisation
     print("[*] Computing PCA projection for 2D map…")
+    pca_data = []
     try:
         pca_data = compute_pca_scatter(model, phase_folders, anchors, sr=sr)
-        pca_path = os.path.join(out_dir, f"{model_stem}_phases_pca.json")
-        with open(pca_path, "w", encoding="utf-8") as f:
-            json.dump(pca_data, f)
-        print(f"[OK] PCA scatter saved: {pca_path}")
     except Exception as exc:
         print(f"[!] PCA projection failed (non-fatal): {exc}")
+
+    save_phase_bundle(anchors, anchors_path, phase_pca=pca_data)
+    print(f"[OK] Phase bundle saved: {anchors_path}")
+    print(f"     Phases: {' -> '.join(a['label'] for a in anchors)}")
 
     return anchors_path

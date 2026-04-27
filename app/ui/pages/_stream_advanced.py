@@ -97,9 +97,10 @@ class _LatentMapWidget(QWidget):
 
 
 class AdvancedSlotPanel(Panel):
-    """Per-slot advanced controls: use-prior toggle and latent per-dim scale."""
+    """Per-slot advanced controls: latent map and latent per-dim scale."""
 
     latentDimChanged = Signal(int, int, float)         # slot_idx, dim, scale
+    # Prior toggle is temporarily disabled in the streaming UI.
     usePriorChanged  = Signal(int, bool)               # slot_idx, enabled
     phaseMapClicked  = Signal(int, dict)               # slot_idx, {mean_z, std_z}
     _MAX_POINTS = 8
@@ -107,6 +108,7 @@ class AdvancedSlotPanel(Panel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._slot_idx  = -1
+        # Prior state kept for backward compatibility with saved UI state.
         self._prior_on  = False
         self._pca_data:     list = []
         self._anchors_data: list = []
@@ -119,15 +121,16 @@ class AdvancedSlotPanel(Panel):
         body.setContentsMargins(14, 10, 14, 14)
         body.setSpacing(10)
 
+        # Prior controls are temporarily disabled.
         # ── global controls row ──────────────────────────────────────────────
-        glob = QHBoxLayout()
-        self._prior_btn = QPushButton("PRIOR OFF")
-        self._prior_btn.setFixedHeight(26)
-        self._prior_btn.setStyleSheet(_BTN_OFF)
-        self._prior_btn.clicked.connect(self._toggle_prior)
-        glob.addWidget(self._prior_btn)
-        glob.addStretch()
-        body.addLayout(glob)
+        # glob = QHBoxLayout()
+        # self._prior_btn = QPushButton("PRIOR OFF")
+        # self._prior_btn.setFixedHeight(26)
+        # self._prior_btn.setStyleSheet(_BTN_OFF)
+        # self._prior_btn.clicked.connect(self._toggle_prior)
+        # glob.addWidget(self._prior_btn)
+        # glob.addStretch()
+        # body.addLayout(glob)
 
         # ── placeholder ──────────────────────────────────────────────────────
         self._placeholder = _lbl("Select a slot to edit", 11, FG3)
@@ -202,16 +205,14 @@ class AdvancedSlotPanel(Panel):
         self._update_dim_lbl()
 
     def load_state(self, state: dict):
-        prior_on = bool(state.get("prior_on", False))
         scales = [float(v) for v in state.get("scales", [1.0] * 8)]
         active_dim = int(state.get("active_dim", 0))
 
         n_dims = max(1, min(self._MAX_POINTS, len(scales)))
         self._radar.set_scales(scales[:n_dims], active_dim=active_dim)
 
-        self._prior_on = prior_on
-        self._prior_btn.setText("PRIOR ON" if self._prior_on else "PRIOR OFF")
-        self._prior_btn.setStyleSheet(_BTN_ON if self._prior_on else _BTN_OFF)
+        # Prior controls are temporarily disabled.
+        self._prior_on = False
 
         self._placeholder.setVisible(False)
         self._latent_w.setVisible(True)
@@ -225,7 +226,7 @@ class AdvancedSlotPanel(Panel):
         }
 
     def load_phase_map(self, pca_data: list, anchors_data: list):
-        """Show the 2D latent map; pca_data from _phases_pca.json, anchors_data from _phases.json."""
+        """Show the 2D latent map; pca_data from phase bundle or legacy split files."""
         self._pca_data = pca_data
         # Align anchors_data to pca_data order by label
         label_to_anchor = {a["label"]: a for a in anchors_data}
@@ -250,11 +251,8 @@ class AdvancedSlotPanel(Panel):
     # ── internal slots ────────────────────────────────────────────────────────
 
     def _toggle_prior(self):
-        self._prior_on = not self._prior_on
-        self._prior_btn.setText("PRIOR ON" if self._prior_on else "PRIOR OFF")
-        self._prior_btn.setStyleSheet(_BTN_ON if self._prior_on else _BTN_OFF)
-        if self._slot_idx >= 0:
-            self.usePriorChanged.emit(self._slot_idx, self._prior_on)
+        # Prior controls are temporarily disabled.
+        return
 
     def _on_dim_selected(self, dim: int):
         self._update_dim_lbl()

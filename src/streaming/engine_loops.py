@@ -339,6 +339,13 @@ def consumer_loop(self):
             self.metrics["played_chunks"] += 1
             self.set_last_output_chunk(chunk)
 
+            cb = getattr(self, "on_chunk_played", None)
+            if callable(cb):
+                try:
+                    cb(chunk)
+                except Exception:
+                    pass
+
             if self.metrics["played_chunks"] % 20 == 0:
                 log_metrics_snapshot(self)
 

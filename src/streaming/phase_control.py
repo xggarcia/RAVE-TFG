@@ -115,6 +115,35 @@ def save_phase_anchors(anchors, path):
         json.dump({"phase_anchors": data}, f, indent=2)
 
 
+def save_phase_bundle(anchors, path, phase_pca=None):
+    """Save a single combined phase file with anchors and optional 2-D map.
+
+    Args:
+        anchors: List of anchor dicts with 'label', 'mean_z', 'std_z'.
+        path: Output file path (.json).
+        phase_pca: Optional list of PCA entries:
+                   [{"label": str, "points": [[x, y], ...], "anchor_xy": [x, y]}]
+    """
+    anchor_data = []
+    for a in anchors:
+        anchor_data.append({
+            "label": a["label"],
+            "mean_z": a["mean_z"].squeeze().tolist(),
+            "std_z": a["std_z"].squeeze().tolist(),
+        })
+
+    bundle = {
+        "format": "rave_phase_bundle",
+        "version": 1,
+        "phase_anchors": anchor_data,
+        "phase_pca": phase_pca if isinstance(phase_pca, list) else [],
+    }
+
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(bundle, f, indent=2)
+
+
 def load_phase_anchors(path):
     """Load phase anchors from a JSON file.
 

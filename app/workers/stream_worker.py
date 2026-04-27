@@ -87,6 +87,8 @@ class _SlotState:
         self.latent_bias: list[float] = []   # per-dim additive bias
         self.latent_scale: list[float] = []  # per-dim multiplicative scale
         self.latent_global_bias = _Var(0.0)  # additive bias applied to all latent dims
+        self.gesture_bias = _Var(0.0)        # additive bias from gesture input
+        self.gesture_temp = _Var(1.0)        # multiplicative temperature from gesture input
 
         self.phase_enabled = _Var(False)
         self.phase_value = _Var(0.0)
@@ -132,6 +134,11 @@ class StreamWorker(QThread):
         self._slots: list[_SlotState] = [_SlotState(i) for i in range(len(self._model_paths))]
         self._phase_xy = (0.5, 0.5)
         self._pending_model_changes: list[tuple[int, str | None]] = []
+
+        self._gesture_enabled = False
+        self._gesture_curve: list[tuple[float, float]] = [(0.0, 0.5), (1.0, 0.5)]
+        self._gesture_loop_seconds = 4.0
+        self._gesture_start_time = time.perf_counter()
 
         self._record_lock = threading.Lock()
         self._record_enabled = False
@@ -289,6 +296,82 @@ class StreamWorker(QThread):
         with self._lock:
             if 0 <= index < len(self._slots):
                 self._slots[index].phase_value.set(max(0.0, min(1.0, value)))
+
+    def set_gesture_enabled(self, enabled: bool):
+        with self._lock:
+            self._gesture_enabled = bool(enabled)
+            self._gesture_start_time = time.perf_counter()
+            if not self._gesture_enabled:
+                for slot in self._slots:
+                    slot.gesture_bias.set(0.0)
+                    slot.gesture_temp.set(1.0)
+
+    def set_gesture_curve(self, points: list):
+        norm: list[tuple[float, float]] = []
+        for p in points or []:
+            if not isinstance(p, (list, tuple)) or len(p) < 2:
+                continue
+            try:
+                x = max(0.0, min(1.0, float(p[0])))
+                y = max(0.0, min(1.0, float(p[1])))
+                norm.append((x, y))
+            except Exception:
+                continue
+
+        if not norm:
+            norm = [(0.0, 0.5), (1.0, 0.5)]
+
+        norm.sort(key=lambda v: v[0])
+        if norm[0][0] > 0.0:
+            norm.insert(0, (0.0, norm[0][1]))
+        if norm[-1][0] < 1.0:
+            norm.append((1.0, norm[-1][1]))
+
+        with self._lock:
+            self._gesture_curve = norm
+
+    def set_gesture_loop_seconds(self, seconds: float):
+        with self._lock:
+            self._gesture_loop_seconds = max(0.25, float(seconds))
+
+    @staticmethod
+    def _interp_curve(curve: list[tuple[float, float]], t_norm: float) -> float:
+        if not curve:
+            return 0.5
+        if t_norm <= curve[0][0]:
+            return curve[0][1]
+        for i in range(1, len(curve)):
+            x0, y0 = curve[i - 1]
+            x1, y1 = curve[i]
+            if t_norm <= x1:
+                if x1 <= x0:
+                    return y1
+                a = (t_norm - x0) / (x1 - x0)
+                return y0 + a * (y1 - y0)
+        return curve[-1][1]
+
+    def _apply_gesture_control(self):
+        with self._lock:
+            enabled = self._gesture_enabled
+            curve = list(self._gesture_curve)
+            loop_seconds = self._gesture_loop_seconds
+            start_t = self._gesture_start_time
+
+        if not enabled:
+            return
+
+        elapsed = max(0.0, time.perf_counter() - start_t)
+        t_norm = (elapsed % loop_seconds) / loop_seconds
+        y = max(0.0, min(1.0, self._interp_curve(curve, t_norm)))
+
+        # Map gesture y into latent controls for an expressive synth-like feel.
+        gesture_temp = 0.7 + 1.1 * y
+        gesture_bias = (y - 0.5) * 0.9
+
+        with self._lock:
+            for slot in self._slots:
+                slot.gesture_temp.set(gesture_temp)
+                slot.gesture_bias.set(gesture_bias)
 
     def set_slot_audio_file(self, index: int, path: str):
         with self._lock:
@@ -638,6 +721,7 @@ class StreamWorker(QThread):
             underruns_seen = 0
             while not self._stop_event.is_set() and self._engine.is_running:
                 self._process_pending_model_changes()
+                self._apply_gesture_control()
                 with self._lock:
                     for i, slot in enumerate(self._slots):
                         level = 0.0

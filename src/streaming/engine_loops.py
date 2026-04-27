@@ -88,19 +88,20 @@ def generate_mixed_chunk(self, active_slots):
                             self.schedule_ui_callback(lambda s=slot: deactivate_finished_audio_slot(self, s))
                             continue
 
-                    z = z * slot.temperature.get()
-
                 else:
                     density = slot.density.get()
                     if slot.held_z is None or random.random() < density:
                         z = torch.randn(1, slot.latent_size, slot.latent_length)
-                        z = z * slot.random_intensity.get() * slot.temperature.get()
+                        z = z * slot.random_intensity.get()
                         slot.held_z = z.clone()
                         slot.density_hold_frames = 0
                     else:
                         slot.density_hold_frames += 1
                         fade = max(0.0, 1.0 - slot.density_hold_frames * 0.12)
                         z = slot.held_z * fade
+
+                # Gesture stream acts as an additional control input over latent temperature.
+                z = z * slot.temperature.get() * slot.gesture_temp.get()
 
                 map_anchor = getattr(slot, "phase_map_anchor", None)
                 if map_anchor is not None:
@@ -180,10 +181,12 @@ def generate_mixed_chunk(self, active_slots):
                 slot.prev_z = z
 
                 global_bias_var = getattr(slot, "latent_global_bias", None)
-                if global_bias_var is not None:
-                    global_bias = float(global_bias_var.get())
-                    if global_bias != 0.0:
-                        z = z + global_bias
+                gesture_bias_var = getattr(slot, "gesture_bias", None)
+                global_bias = float(global_bias_var.get()) if global_bias_var is not None else 0.0
+                gesture_bias = float(gesture_bias_var.get()) if gesture_bias_var is not None else 0.0
+                total_bias = global_bias + gesture_bias
+                if total_bias != 0.0:
+                    z = z + total_bias
 
                 # Per-dim latent controls (bias / scale)
                 bias_list  = getattr(slot, "latent_bias",  [])

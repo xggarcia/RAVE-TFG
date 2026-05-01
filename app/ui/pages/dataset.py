@@ -10,8 +10,9 @@ from app.ui.widgets.form import (
     PageHeader, section_title, _lbl,
     BG0, BG1, BG2, BG3, FG0, FG1, FG2, FG3, LINE0, LINE1, ACID, ACIDBG, ACIDDIM, MONO,
 )
-from app.ui.pages._dataset_details import (
-    DoAllDetail, FirstDownloadDetail, FinalDownloadDetail,
+from app.ui.pages._dataset_details import DoAllDetail
+from app.ui.pages._dataset_step_panels import (
+    FirstDownloadDetail, FinalDownloadDetail,
     NormalizeDetail, MergeDetail, ConvertDetail,
 )
 from app.ui.pages._dataset_preview import PreviewSelectDetail

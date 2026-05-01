@@ -1,96 +1,38 @@
-from PySide6.QtCore import Qt, Slot
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtCore import Slot
 from PySide6.QtWidgets import (
-    QComboBox,
     QFrame,
-    QGridLayout,
     QHBoxLayout,
-    QLabel,
-    QLineEdit,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
-EXTRA_CONFIGS = [
-    ("noise",    "noise injection"),
-    ("causal",   "causal convolutions"),
-    ("snake",    "snake activations"),
-    ("hinge",    "hinge discriminator"),
-    ("descript", "descript discriminator"),
-]
-DEFAULT_ON = {"noise", "causal"}
-
 from app.ui.pages._train_live import LivePanel
+from app.ui.pages._workflow_config import (
+    EXTRA_CONFIGS,
+    DEFAULT_ON,
+    _ConfigChip,
+    build_config_panel,
+)
+from app.ui.pages._workflow_widgets import StageRow, StageState
 from app.ui.widgets.form import (
     ACID,
     AMBER,
     BG0,
-    BG1,
-    BG2,
-    FG0,
     FG1,
     FG2,
-    FG3,
     LINE0,
-    LINE1,
     MAG,
     MONO,
-    Field,
-    FileInput,
     PageHeader,
     Panel,
-    RadioGroup,
-    Toggle,
     _lbl,
     section_title,
 )
-from app.ui.pages._workflow_widgets import StageRow, StageState
 
 
-class _ConfigChip(QWidget):
-    def __init__(self, key: str, desc: str, on: bool = False, parent=None):
-        super().__init__(parent)
-        self.key = key
-        self._on = on
-        self.setCursor(Qt.PointingHandCursor)
-        self.setFixedHeight(36)
-        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.setMinimumWidth(80)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 0, 10, 0)
-        layout.setSpacing(6)
-        self._key_lbl = _lbl(key, size=11, color=ACID if on else FG1, mono=True)
-        self._desc_lbl = _lbl(f"· {desc}", size=10, color=FG3)
-        layout.addWidget(self._key_lbl)
-        layout.addWidget(self._desc_lbl)
-
-    @property
-    def is_on(self) -> bool:
-        return self._on
-
-    def mousePressEvent(self, event):
-        self._on = not self._on
-        self._key_lbl.setStyleSheet(
-            f"color:{ACID if self._on else FG1}; font-size:11px; {MONO} background:transparent;"
-        )
-        self.update()
-
-    def paintEvent(self, event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        r = self.rect().adjusted(0, 0, -1, -1)
-        if self._on:
-            p.setPen(QPen(QColor("#3a4f1a"), 1))
-            p.setBrush(QColor("#1e2d0a"))
-        else:
-            p.setPen(QPen(QColor(LINE1), 1))
-            p.setBrush(QColor(BG1))
-        p.drawRoundedRect(r, 3, 3)
-        p.end()
 from app.workers.export_worker import ExportWorker
 from app.workers.preprocess_worker import PreprocessWorker
 from app.workers.train_worker import TrainWorker
@@ -161,84 +103,7 @@ class WorkflowPage(QWidget):
         root.addWidget(scroll, 1)
 
     def _build_config(self) -> QWidget:
-        self._chips: list[_ConfigChip] = []
-
-        panel = Panel()
-        panel.add_header(section_title("Run configuration"), _lbl("active", 10, ACID, mono=True))
-        body = panel.body_layout()
-
-        grid = QGridLayout()
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(14)
-        grid.setVerticalSpacing(10)
-
-        self._audio_input = FileInput(placeholder="~/datasets/vocals-v2/", directory=True)
-        self._model_name = QLineEdit("vox-phase3-v2")
-        self._model_name.setStyleSheet(
-            f"background:{BG1}; color:{FG0}; border:1px solid {LINE1}; border-radius:4px; padding:6px 10px; {MONO}"
-        )
-        self._config = QComboBox()
-        self._config.addItems(["v2_small", "v2", "v3", "v3_small"])
-        self._config.setCurrentText("v2")
-        self._channels = RadioGroup(
-            options=[{"value": "1", "label": "Mono (1)"}, {"value": "2", "label": "Stereo (2)"}],
-            value="1",
-        )
-        self._max_steps = QLineEdit("500000")
-        self._max_steps.setStyleSheet(
-            f"background:{BG1}; color:{FG0}; border:1px solid {LINE1}; border-radius:4px; padding:6px 10px; {MONO}"
-        )
-        self._batch_size = QLineEdit("8")
-        self._batch_size.setStyleSheet(
-            f"background:{BG1}; color:{FG0}; border:1px solid {LINE1}; border-radius:4px; padding:6px 10px; {MONO}"
-        )
-        self._destination = FileInput(placeholder="models/user_model/exported_model", directory=True)
-        self._val_every = QLineEdit("10000")
-        self._val_every.setStyleSheet(
-            f"background:{BG1}; color:{FG0}; border:1px solid {LINE1}; border-radius:4px; padding:6px 10px; {MONO}"
-        )
-        self._save_every = QLineEdit("25000")
-        self._save_every.setStyleSheet(
-            f"background:{BG1}; color:{FG0}; border:1px solid {LINE1}; border-radius:4px; padding:6px 10px; {MONO}"
-        )
-        self._export_run = FileInput(placeholder="auto-detect from training", directory=True)
-        self._streaming = Toggle(on=True)
-        self._export_name = QLineEdit("model_streaming.ts")
-        self._export_name.setStyleSheet(
-            f"background:{BG1}; color:{FG0}; border:1px solid {LINE1}; border-radius:4px; padding:6px 10px; {MONO}"
-        )
-
-        widgets = [
-            Field("Audio folder", inline=False).add(self._audio_input),
-            Field("Model name", inline=False).add(self._model_name),
-            Field("Config", inline=False).add(self._config),
-            Field("Channels", inline=False).add(self._channels),
-            Field("Max steps", inline=False).add(self._max_steps),
-            Field("Batch size", inline=False).add(self._batch_size),
-            Field("Val every", inline=False).add(self._val_every),
-            Field("Save every", inline=False).add(self._save_every),
-            Field("Export destination", inline=False).add(self._destination),
-            Field("Export run folder", hint="Leave blank to auto-detect after training.", inline=False).add(self._export_run),
-            Field("Streaming", hint="Required for real-time use.", inline=False).add(self._streaming),
-            Field("Output name", inline=False).add(self._export_name),
-        ]
-        for i, widget in enumerate(widgets):
-            grid.addWidget(widget, i // 4, i % 4)
-
-        body.addLayout(grid)
-
-        # Extra configs chips
-        body.addWidget(_lbl("Extra configs", size=10, color=FG2, mono=True, spacing="1px"))
-        chips_row = QHBoxLayout()
-        chips_row.setSpacing(8)
-        for key, desc in EXTRA_CONFIGS:
-            chip = _ConfigChip(key, desc, on=(key in DEFAULT_ON))
-            self._chips.append(chip)
-            chips_row.addWidget(chip)
-        chips_row.addStretch()
-        body.addLayout(chips_row)
-
-        return panel
+        return build_config_panel(self)
 
     def _build_timeline(self) -> QWidget:
         panel = Panel()

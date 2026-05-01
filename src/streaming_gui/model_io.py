@@ -93,7 +93,6 @@ class StreamGUIModelIOMixin:
                 f"Slot {slot.slot_id + 1}: Prior loaded successfully (seed channels: {compatible_seed})"
             )
             self.update_input_controls_obj(slot)
-
         except Exception as e:
             messagebox.showerror("Prior Load Error", f"Failed to load compatible prior:\n{str(e)}")
             self.log_status(f"Slot {slot.slot_id + 1}: Prior load failed - {str(e)}")
@@ -127,7 +126,6 @@ class StreamGUIModelIOMixin:
             total_chunks = encoded.shape[-1] // slot.latent_length
             duration = len(audio) / self.sr.get()
             self.log_status(f"Slot {slot.slot_id + 1}: Audio encoded ({duration:.1f}s, {total_chunks} chunks)")
-
         except Exception as e:
             messagebox.showerror("Audio Load Error", f"Failed to load audio:\n{str(e)}")
             self.log_status(f"Slot {slot.slot_id + 1}: Audio load failed - {str(e)}")
@@ -247,7 +245,6 @@ class StreamGUIModelIOMixin:
                     self.log_status(f"  Phase anchors auto-loaded: {labels}")
                 except Exception as phase_err:
                     self.log_status(f"  Phase anchors file found but failed to load: {phase_err}")
-
             self.log_status(f"Slot {slot.slot_id + 1}: Model loaded successfully")
             self.log_status(f"  Latent: {slot.latent_size}x{slot.latent_length}, Output: {slot.output_length} samples")
             if slot.model_sr is not None:
@@ -297,7 +294,6 @@ class StreamGUIModelIOMixin:
             os.path.join(os.getcwd(), "models", "demo_model"),
             os.path.join(os.getcwd(), "models", "user_model", "exported_model"),
         ]
-
         self.available_models = []
         for directory in search_dirs:
             if os.path.exists(directory):
@@ -305,7 +301,6 @@ class StreamGUIModelIOMixin:
                     if file.endswith(".ts"):
                         full_path = os.path.join(directory, file)
                         self.available_models.append(full_path)
-
         self.update_all_dropdowns()
         self.log_status(f"Found {len(self.available_models)} available models")
 

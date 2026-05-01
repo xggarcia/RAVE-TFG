@@ -55,7 +55,6 @@ def coerce_prior_latent(z, target_channels, target_frames):
 def generate_mixed_chunk(self, active_slots):
     mixed_audio = np.zeros(self.chunk_samples, dtype=np.float32)
     decode_total_ms = 0.0
-
     for slot in active_slots:
         should_decode = (slot.cached_audio is None) or ((self._producer_cycle + slot.slot_id) % self.decode_stride == 0)
 
@@ -99,7 +98,6 @@ def generate_mixed_chunk(self, active_slots):
                         slot.density_hold_frames += 1
                         fade = max(0.0, 1.0 - slot.density_hold_frames * 0.12)
                         z = slot.held_z * fade
-
                 # Gesture stream acts as an additional control input over latent temperature.
                 z = z * slot.temperature.get() * slot.gesture_temp.get()
 
@@ -173,7 +171,6 @@ def generate_mixed_chunk(self, active_slots):
                     except Exception as prior_exc:
                         self.schedule_ui_callback(lambda s=slot, msg=str(prior_exc): deactivate_failed_prior_slot(self, s, msg))
                         # Keep source latent z for this chunk and continue streaming.
-
                 if slot.prev_z is not None:
                     smooth = slot.smoothing.get()
                     z = smooth * slot.prev_z + (1 - smooth) * z
@@ -187,7 +184,6 @@ def generate_mixed_chunk(self, active_slots):
                 total_bias = global_bias + gesture_bias
                 if total_bias != 0.0:
                     z = z + total_bias
-
                 # Per-dim latent controls (bias / scale)
                 bias_list  = getattr(slot, "latent_bias",  [])
                 scale_list = getattr(slot, "latent_scale", [])
@@ -207,9 +203,7 @@ def generate_mixed_chunk(self, active_slots):
 
             if prior_chunk_used:
                 slot.prior_chunks_generated += 1
-
             decode_total_ms += (time.perf_counter() - decode_start) * 1000.0
-
             if len(audio) != self.chunk_samples:
                 if len(audio) > self.chunk_samples:
                     audio = audio[:self.chunk_samples]
@@ -217,7 +211,6 @@ def generate_mixed_chunk(self, active_slots):
                     audio = np.pad(audio, (0, self.chunk_samples - len(audio)))
 
             audio = audio.astype(np.float32, copy=False)
-
             # Dry/wet blend — only meaningful in audio mode with raw audio available
             if slot.input_mode.get() == "audio" and slot.raw_audio is not None:
                 w = float(slot.dry_wet.get())
@@ -234,10 +227,8 @@ def generate_mixed_chunk(self, active_slots):
                 if len(dry_chunk) < n:
                     dry_chunk = np.pad(dry_chunk, (0, n - len(dry_chunk)))
                 audio = (1.0 - w) * dry_chunk + w * audio
-
             slot.cached_audio = audio
             slot.last_decode_cycle = self._producer_cycle
-
         if slot.cached_audio is not None:
             mixed_audio += slot.cached_audio * slot.gain.get()
 

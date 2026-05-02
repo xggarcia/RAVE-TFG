@@ -135,16 +135,16 @@ class StreamPage(QWidget, _StreamBuildersMixin, _StreamHandlersMixin):
                 item.widget().deleteLater()
 
     def _refresh_models(self):
-        from pathlib import Path
+        from app._paths import get_repo_root
+        root = get_repo_root()
         candidates = []
-        for folder in [Path("models/user_model/exported_model"), Path("models/demo_model")]:
+        for folder in [root / "models" / "user_model" / "exported_model", root / "models" / "demo_model"]:
             if folder.exists():
                 candidates.extend(str(p) for p in folder.glob("*.ts"))
         self._models = sorted(candidates)
 
-        if not self._models:
-            self._set_empty_state()
-        elif self._worker:
+        # Always show the streaming UI regardless of model presence
+        if self._worker:
             self._set_live_preview_state(streaming=True)
         else:
             self._set_live_preview_state()

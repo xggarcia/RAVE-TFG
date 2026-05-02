@@ -228,10 +228,22 @@ class _LogoBox(QWidget):
         p.end()
 
 
+def _get_gpu_info():
+    try:
+        import torch
+        if torch.cuda.is_available():
+            name = torch.cuda.get_device_name(0)
+            cap = torch.cuda.get_device_capability(0)
+            return f"{name} · CUDA {cap[0]}.{cap[1]}"
+    except Exception:
+        pass
+    return "CPU only"
+
+
 class _GpuCard(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(62)
+        self.setFixedHeight(42)
         self.setContentsMargins(8, 0, 8, 8)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -241,41 +253,11 @@ class _GpuCard(QWidget):
 
         top = QHBoxLayout()
         top.setSpacing(6)
-        gpu_lbl = QLabel("RTX 4090 · CUDA")
+        gpu_info = _get_gpu_info()
+        gpu_lbl = QLabel(gpu_info)
         gpu_lbl.setStyleSheet(f"color:{FG1}; font-family:'JetBrains Mono','Consolas',monospace; font-size:10px; letter-spacing:1px;")
         top.addWidget(gpu_lbl)
         top.addStretch()
         layout.addLayout(top)
 
-        vram_row = QHBoxLayout()
-        vram_lbl = QLabel("VRAM")
-        vram_lbl.setStyleSheet(f"color:{FG2}; font-family:'JetBrains Mono','Consolas',monospace; font-size:10px;")
-        vram_val = QLabel("6.2 / 24 GB")
-        vram_val.setStyleSheet(f"color:{FG0}; font-family:'JetBrains Mono','Consolas',monospace; font-size:10px;")
-        vram_row.addWidget(vram_lbl)
-        vram_row.addStretch()
-        vram_row.addWidget(vram_val)
-        layout.addLayout(vram_row)
 
-        self._bar = _VramBar(0.26)
-        layout.addWidget(self._bar)
-
-
-class _VramBar(QWidget):
-    def __init__(self, fraction: float, parent=None):
-        super().__init__(parent)
-        self._fraction = fraction
-        self.setFixedHeight(4)
-
-    def paintEvent(self, event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        r = self.rect()
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(BG1))
-        p.drawRoundedRect(r, 2, 2)
-        fill_w = int(r.width() * self._fraction)
-        if fill_w > 0:
-            p.setBrush(QColor(ACID))
-            p.drawRoundedRect(0, 0, fill_w, r.height(), 2, 2)
-        p.end()

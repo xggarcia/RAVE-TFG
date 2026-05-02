@@ -7,6 +7,7 @@ BG1   = "#232926"
 FG2   = "#96a092"
 FG3   = "#717870"
 ACID  = "#a8e63d"
+RED   = "#e0406a"
 
 
 class _Dot(QWidget):
@@ -22,6 +23,14 @@ class _Dot(QWidget):
         p.setBrush(self._color)
         p.drawEllipse(0, 0, 6, 6)
         p.end()
+
+
+def _has_cuda():
+    try:
+        import torch
+        return torch.cuda.is_available()
+    except Exception:
+        return False
 
 
 class StatusRail(QWidget):
@@ -40,7 +49,14 @@ class StatusRail(QWidget):
     def _set_defaults(self):
         self._status_lbl = self._add_item("Idle", FG3)
         self._add_separator()
-        self._add_item("GPU OK", ACID)
+
+        cuda = _has_cuda()
+        gpu_color = ACID if cuda else RED
+        gpu_text = "GPU available" if cuda else "No GPU"
+        self._gpu_dot = _Dot(gpu_color)
+        self._layout.addWidget(self._gpu_dot)
+        self._gpu_lbl = self._add_item(gpu_text, gpu_color)
+
         self._add_separator()
         self._add_item("~/rave-tfg/workspace", FG3)
         self._layout.addStretch()

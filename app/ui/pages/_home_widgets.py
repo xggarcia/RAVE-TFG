@@ -72,11 +72,24 @@ RECENT = [
     {"kind": "preprocess", "name": "field-recordings-v2", "meta": "1,247 files · 3.8 GB",   "status": "done", "time": "yesterday"},
 ]
 
+def _get_gpu_stat():
+    try:
+        import torch
+        if torch.cuda.is_available():
+            name = torch.cuda.get_device_name(0)
+            cap = torch.cuda.get_device_capability(0)
+            mem = torch.cuda.get_device_properties(0).total_mem
+            total_gb = mem / (1024 ** 3)
+            return {"label": "GPU", "value": name, "sub": f"CUDA {cap[0]}.{cap[1]} · {total_gb:.0f} GB"}
+    except Exception:
+        pass
+    return {"label": "GPU", "value": "CPU only", "sub": "No CUDA device"}
+
 STATS = [
     {"label": "Models trained", "value": "14",       "sub": "+3 this week"},
     {"label": "Active runs",    "value": "1",        "sub": "vox-phase3-v2 · 61%"},
     {"label": "Datasets",       "value": "7",        "sub": "12.4 GB total"},
-    {"label": "GPU",            "value": "RTX 4090", "sub": "CUDA 12.1 · 6.2/24 GB"},
+    _get_gpu_stat(),
 ]
 
 

@@ -119,7 +119,7 @@ class _StreamBuildersMixin:
         if pat is not None:
             self._gesture_widget.set_pattern(pat)
         self._gesture_widget.subbandPatternChanged.connect(self._on_subband_pattern_changed)
-        tb.addWidget(self._gesture_widget)
+        tb.addWidget(self._gesture_widget, alignment=Qt.AlignHCenter)
 
         master_row = QHBoxLayout()
         self._master_knob = Knob("MASTER", 0.75)

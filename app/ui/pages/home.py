@@ -18,12 +18,8 @@ from app.ui.pages._home_widgets import (
     FG1,
     FG2,
     LINE0,
-    RECENT,
     SECTIONS,
-    STATS,
-    _RecentRow,
     _SectionGroup,
-    _StatCard,
     _lbl,
 )
 
@@ -88,7 +84,6 @@ class HomePage(QWidget):
         h1 = _lbl("Train, export and stream neural audio models.", size=24, color="#f0f4ee", bold=True)
         h1.setWordWrap(True)
         left_col.addWidget(h1)
-        left_col.addWidget(_lbl("Pick a task below, or resume your last session.", size=12, color=FG2))
         top.addLayout(left_col, 1)
 
         btn_row = QHBoxLayout()
@@ -105,13 +100,6 @@ class HomePage(QWidget):
 
         layout.addSpacing(8)
         layout.addLayout(top)
-
-        layout.addSpacing(20)
-        stat_grid = QHBoxLayout()
-        stat_grid.setSpacing(12)
-        for s in STATS:
-            stat_grid.addWidget(_StatCard(s["label"], s["value"], s["sub"]))
-        layout.addLayout(stat_grid)
 
         return hero
 
@@ -137,35 +125,6 @@ class HomePage(QWidget):
         layout = QVBoxLayout(right)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-
-        layout.addWidget(_lbl("RECENT ACTIVITY", size=10, color=FG2, mono=True, spacing="2px"))
-        layout.addSpacing(8)
-
-        activity_box = QWidget()
-        activity_box.setStyleSheet(f"background:{BG2}; border:1px solid {LINE0}; border-radius:4px;")
-        ab_layout = QVBoxLayout(activity_box)
-        ab_layout.setContentsMargins(0, 0, 0, 0)
-        ab_layout.setSpacing(0)
-        for i, r in enumerate(RECENT):
-            ab_layout.addWidget(_RecentRow(r, i == len(RECENT) - 1))
-        layout.addWidget(activity_box)
-
-        layout.addSpacing(20)
-        layout.addWidget(_lbl("QUICK TIPS", size=10, color=FG2, mono=True, spacing="2px"))
-        layout.addSpacing(8)
-
-        tip_box = QWidget()
-        tip_box.setStyleSheet(f"background:{BG2}; border:1px solid {LINE0}; border-radius:4px;")
-        tip_layout = QVBoxLayout(tip_box)
-        tip_layout.setContentsMargins(12, 12, 12, 12)
-        tip_text = QLabel(
-            "Training typically takes <b>15–24h</b> on cloud GPU. "
-            "Runs persist between sessions."
-        )
-        tip_text.setWordWrap(True)
-        tip_text.setStyleSheet(f"color:{FG1}; font-size:12px; background:transparent;")
-        tip_layout.addWidget(tip_text)
-        layout.addWidget(tip_box)
 
         layout.addStretch()
         return right

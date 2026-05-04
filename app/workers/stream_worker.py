@@ -5,9 +5,9 @@ from collections import deque
 from pathlib import Path
 
 import numpy as np
+import torch
 from PySide6.QtCore import QThread, Signal
 
-from app.ui.pages._stream_gesture import apply_gesture_control
 from app.workers._stream_models import _SlotState, _detect_model_sr
 from app.workers._stream_loader import (
     _clear_slot_model,
@@ -30,6 +30,7 @@ class StreamWorker(QThread):
     slotVu = Signal(int, float, float)
     slotSpectrogram = Signal(int, object)   # index, np.ndarray audio chunk
     slotInfo = Signal(int, int)             # index, latent_size
+    slotSubbandPosition = Signal(int, int, int)  # index, current_step, total_steps
     masterVu = Signal(float, float, float)  # left, right, latency_ms
     warning = Signal(str)
     running = Signal(bool)
@@ -49,10 +50,7 @@ class StreamWorker(QThread):
         self._phase_xy = (0.5, 0.5)
         self._pending_model_changes: list[tuple[int, str | None]] = []
 
-        self._gesture_enabled = False
-        self._gesture_curve: list[tuple[float, float]] = [(0.0, 0.5), (1.0, 0.5)]
-        self._gesture_loop_seconds = 4.0
-        self._gesture_start_time = time.perf_counter()
+        self._subband_intensity = 1.0  # Global subband control intensity (0.0-1.0)
 
         self._record_lock = threading.Lock()
         self._record_enabled = False
@@ -143,42 +141,24 @@ class StreamWorker(QThread):
             if 0 <= index < len(self._slots):
                 self._slots[index].phase_value.set(max(0.0, min(1.0, value)))
 
-    def set_gesture_enabled(self, enabled: bool):
+    def set_slot_subband_pattern(self, index: int, pattern: torch.Tensor | np.ndarray):
+        """Set the subband pattern for a slot (num_subbands, n_timesteps)."""
         with self._lock:
-            self._gesture_enabled = bool(enabled)
-            self._gesture_start_time = time.perf_counter()
-            if not self._gesture_enabled:
-                for slot in self._slots:
-                    slot.gesture_bias.set(0.0)
-                    slot.gesture_temp.set(1.0)
+            if 0 <= index < len(self._slots):
+                slot = self._slots[index]
+                if isinstance(pattern, torch.Tensor):
+                    slot.subband_pattern = pattern.float()
+                else:
+                    slot.subband_pattern = torch.from_numpy(np.asarray(pattern, dtype=np.float32))
+                slot.subband_position = 0
 
-    def set_gesture_curve(self, points: list):
-        norm: list[tuple[float, float]] = []
-        for p in points or []:
-            if not isinstance(p, (list, tuple)) or len(p) < 2:
-                continue
-            try:
-                x = max(0.0, min(1.0, float(p[0])))
-                y = max(0.0, min(1.0, float(p[1])))
-                norm.append((x, y))
-            except Exception:
-                continue
-
-        if not norm:
-            norm = [(0.0, 0.5), (1.0, 0.5)]
-
-        norm.sort(key=lambda v: v[0])
-        if norm[0][0] > 0.0:
-            norm.insert(0, (0.0, norm[0][1]))
-        if norm[-1][0] < 1.0:
-            norm.append((1.0, norm[-1][1]))
-
+    def set_subband_intensity(self, intensity: float):
+        """Set global subband intensity (0.0-1.0)."""
         with self._lock:
-            self._gesture_curve = norm
-
-    def set_gesture_loop_seconds(self, seconds: float):
-        with self._lock:
-            self._gesture_loop_seconds = max(0.25, float(seconds))
+            self._subband_intensity = max(0.0, min(1.0, float(intensity)))
+            # Update engine if running
+            if self._engine is not None:
+                self._engine.subband_intensity = self._subband_intensity
 
     def set_slot_audio_file(self, index: int, path: str):
         with self._lock:
@@ -261,6 +241,7 @@ class StreamWorker(QThread):
             self.stage.emit("Allocate buffers", False, True)
             self._engine = StreamingEngine(self._log_msg, self._get_active_slots, self._schedule_ui_callback)
             self._engine.master_volume = self._master_volume
+            self._engine.subband_intensity = self._subband_intensity
             self._engine.on_chunk_played = self._on_played_chunk
             self._engine.configure(
                 stream=self._stream,
@@ -275,10 +256,6 @@ class StreamWorker(QThread):
             underruns_seen = 0
             while not self._stop_event.is_set() and self._engine.is_running:
                 _process_pending_model_changes(self)
-                apply_gesture_control(
-                    self._lock, self._gesture_enabled, self._gesture_curve,
-                    self._gesture_loop_seconds, self._gesture_start_time, self._slots,
-                )
                 with self._lock:
                     for i, slot in enumerate(self._slots):
                         level = 0.0
@@ -289,6 +266,10 @@ class StreamWorker(QThread):
                             peak = float(np.max(np.abs(audio)))
                             self.slotSpectrogram.emit(i, audio * slot.gain.get())
                         self.slotVu.emit(i, min(1.0, level * 2.0), min(1.0, peak))
+                        if slot.input_mode.get() == "gesture" and slot.subband_pattern is not None:
+                            total_steps = int(slot.subband_pattern.shape[1]) if slot.subband_pattern.ndim == 2 else 0
+                            if total_steps > 0:
+                                self.slotSubbandPosition.emit(i, int(slot.subband_position) % total_steps, total_steps)
 
                     if self._engine.metrics["write_ms"]:
                         latency = float(self._engine.metrics["write_ms"][-1])

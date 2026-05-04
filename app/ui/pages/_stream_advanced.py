@@ -120,6 +120,7 @@ class AdvancedSlotPanel(Panel):
         body = self._body_w.layout()
         body.setContentsMargins(14, 10, 14, 14)
         body.setSpacing(10)
+        body.setAlignment(Qt.AlignHCenter)
 
         # Prior controls are temporarily disabled.
         # ── global controls row ──────────────────────────────────────────────
@@ -134,7 +135,8 @@ class AdvancedSlotPanel(Panel):
 
         # ── placeholder ──────────────────────────────────────────────────────
         self._placeholder = _lbl("Select a slot to edit", 11, FG3)
-        body.addWidget(self._placeholder)
+        self._placeholder.setAlignment(Qt.AlignHCenter)
+        body.addWidget(self._placeholder, alignment=Qt.AlignHCenter)
 
         # ── latent section (shown when streaming + model loaded) ─────────────
         self._latent_w = QWidget()
@@ -142,6 +144,7 @@ class AdvancedSlotPanel(Panel):
         ll = QVBoxLayout(self._latent_w)
         ll.setContentsMargins(0, 0, 0, 0)
         ll.setSpacing(6)
+        ll.setAlignment(Qt.AlignHCenter)
 
         self._dim_lbl = _lbl("Dim 0 — scale 1.00", 10, FG2, mono=True)
         ll.addWidget(self._dim_lbl)
@@ -151,7 +154,7 @@ class AdvancedSlotPanel(Panel):
         self._radar.scaleChanged.connect(self._on_scale_changed)
         ll.addWidget(self._radar)
 
-        body.addWidget(self._latent_w)
+        body.addWidget(self._latent_w, alignment=Qt.AlignHCenter)
         self._latent_w.setVisible(False)
 
         # ── latent map section (shown when anchor file is loaded) ────────────
@@ -160,12 +163,13 @@ class AdvancedSlotPanel(Panel):
         ml = QVBoxLayout(self._map_section)
         ml.setContentsMargins(0, 6, 0, 0)
         ml.setSpacing(4)
+        ml.setAlignment(Qt.AlignHCenter)
         ml.addWidget(section_title("Latent map · click to steer"))
         self._map_widget = _LatentMapWidget()
         self._map_widget.pointClicked.connect(self._on_map_point)
         ml.addWidget(self._map_widget)
 
-        body.addWidget(self._map_section)
+        body.addWidget(self._map_section, alignment=Qt.AlignHCenter)
         self._map_section.setVisible(False)
 
         # Start disabled until a slot is selected

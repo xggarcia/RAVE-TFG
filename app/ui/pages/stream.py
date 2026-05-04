@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+import torch
 
 from app.ui.widgets.form import (
     AMBER,
@@ -40,9 +41,11 @@ class StreamPage(QWidget, _StreamBuildersMixin, _StreamHandlersMixin):
         self._slot_latent_sizes: list[int | None] = [None, None]
         self._slot_adv_state: list[dict] = [self._default_adv_state(), self._default_adv_state()]
         self._slot_param_state: list[dict] = [self._default_slot_params(), self._default_slot_params()]
+        # One painted pattern per slot; widget shows the selected slot's pattern.
+        self._slot_subband_patterns: list[torch.Tensor | None] = [None, None]
+        self._slot_subband_positions: list[int] = [0, 0]
         self._recording_active = False
-        self._gesture_enabled = True
-        self._gesture_curve: list[tuple[float, float]] = [(0.0, 0.5), (1.0, 0.5)]
+        self._gesture_intensity = 1.0  # Subband intensity: 0.0-1.0
         self._build()
         self._refresh_models()
 
@@ -62,6 +65,10 @@ class StreamPage(QWidget, _StreamBuildersMixin, _StreamHandlersMixin):
             self._slot_adv_state.append(self._default_adv_state())
         while len(self._slot_param_state) < target_len:
             self._slot_param_state.append(self._default_slot_params())
+        while len(self._slot_subband_patterns) < target_len:
+            self._slot_subband_patterns.append(None)
+        while len(self._slot_subband_positions) < target_len:
+            self._slot_subband_positions.append(0)
 
     def _resize_adv_state(self, slot_idx: int, n_dims: int):
         if not (0 <= slot_idx < len(self._slot_adv_state)):
@@ -167,6 +174,7 @@ class StreamPage(QWidget, _StreamBuildersMixin, _StreamHandlersMixin):
         self._slot_latent_sizes.append(None)
         self._slot_adv_state.append(self._default_adv_state())
         self._slot_param_state.append(self._default_slot_params())
+        self._slot_subband_patterns.append(None)
         self._set_live_preview_state()
 
     def _stop_stream(self):
@@ -176,25 +184,34 @@ class StreamPage(QWidget, _StreamBuildersMixin, _StreamHandlersMixin):
             self._worker.stop()
             self.statusChanged.emit("Stopping stream...", AMBER)
 
-    def _toggle_gesture(self):
-        self._gesture_enabled = not self._gesture_enabled
-        if hasattr(self, "_gesture_toggle_btn"):
-            self._gesture_toggle_btn.setText("Gesture ON" if self._gesture_enabled else "Gesture OFF")
-        self._apply_gesture_to_worker()
-        self.statusChanged.emit(f"Gesture control {'enabled' if self._gesture_enabled else 'disabled'}", FG2)
-
-    def _clear_gesture(self):
+    def _clear_subband(self):
         if hasattr(self, "_gesture_widget"):
-            self._gesture_widget.clear_curve()
+            self._gesture_widget.clear()
 
-    @Slot(list)
-    def _on_gesture_curve_changed(self, points: list):
-        self._gesture_curve = [(float(x), float(y)) for x, y in points]
-        self._apply_gesture_to_worker()
+    def _invert_subband(self):
+        if hasattr(self, "_gesture_widget"):
+            self._gesture_widget.invert()
 
-    def _apply_gesture_to_worker(self):
-        if not self._worker:
-            return
-        self._worker.set_gesture_curve(self._gesture_curve)
-        self._worker.set_gesture_loop_seconds(4.0)
-        self._worker.set_gesture_enabled(self._gesture_enabled)
+    @Slot(torch.Tensor)
+    def _on_subband_pattern_changed(self, pattern: torch.Tensor):
+        idx = self._selected_slot
+        # Persist pattern in the per-slot store and push only to that slot.
+        if 0 <= idx < len(self._slot_subband_patterns):
+            self._slot_subband_patterns[idx] = pattern.clone()
+        if self._worker and 0 <= idx < len(self._slot_assignments):
+            self._worker.set_slot_subband_pattern(idx, pattern)
+        self.statusChanged.emit(f"Subband pattern updated (slot {chr(65 + idx)})", FG2)
+
+    @Slot(int, int, int)
+    def _on_subband_position(self, index: int, position: int, total_steps: int):
+        if 0 <= index < len(self._slot_subband_positions) and total_steps > 0:
+            self._slot_subband_positions[index] = position % total_steps
+        if self._state == "live" and hasattr(self, "_gesture_widget") and index == self._selected_slot:
+            self._gesture_widget.set_playhead_column(self._slot_subband_positions[index])
+
+    @Slot(float)
+    def _on_subband_intensity_changed(self, value: float):
+        self._gesture_intensity = max(0.0, min(1.0, value))
+        if self._worker:
+            self._worker.set_subband_intensity(self._gesture_intensity)
+        self.statusChanged.emit(f"Subband intensity: {self._gesture_intensity * 100:.0f}%", FG2)

@@ -52,6 +52,115 @@ def coerce_prior_latent(z, target_channels, target_frames):
     return z
 
 
+def _interp_curve(curve: list, t_norm: float) -> float:
+    if not curve:
+        return 0.5
+    if t_norm <= curve[0][0]:
+        return curve[0][1]
+    for i in range(1, len(curve)):
+        x0, y0 = curve[i - 1]
+        x1, y1 = curve[i]
+        if t_norm <= x1:
+            if x1 <= x0:
+                return y1
+            a = (t_norm - x0) / (x1 - x0)
+            return y0 + a * (y1 - y0)
+    return curve[-1][1]
+
+
+def _sample_curve_at(curve: list, n: int):
+    import numpy as _np
+    if not curve or n <= 0:
+        return _np.zeros(n, dtype=_np.float32)
+    xs = _np.linspace(0.0, 1.0, n)
+    ys = [_interp_curve(curve, float(x)) for x in xs]
+    return _np.array(ys, dtype=_np.float32)
+
+
+def _project_subband_pattern_to_latent(pattern, latent_size: int, latent_length: int, step_index: int):
+    """Map a painted (num_subbands, n_timesteps) pattern to a latent chunk.
+
+    Each of the ``latent_length`` output frames samples one consecutive column
+    of the pattern starting at ``step_index``. This makes the timeline 1:1: a
+    spike painted at column N produces a latent excursion exactly when the
+    playhead crosses column N.
+
+    Each subband row drives a contiguous slice of the latent dimensions,
+    weighted by ``row_weights`` (top band strongest, bottom band weakest).
+    A faint texture per row breaks the all-DC excursion that would otherwise
+    sound monotonous, but the painted curve is the dominant signal.
+    """
+    import numpy as _np
+    import torch as _torch
+
+    if pattern is None:
+        return _torch.zeros(1, latent_size, latent_length)
+
+    if torch.is_tensor(pattern):
+        pattern = pattern.detach().cpu().float().numpy()
+    else:
+        pattern = _np.asarray(pattern, dtype=_np.float32)
+
+    if pattern.ndim != 2 or latent_size <= 0 or latent_length <= 0:
+        return _torch.zeros(1, max(1, latent_size), max(1, latent_length))
+
+    num_rows, num_steps = pattern.shape
+    if num_rows == 0 or num_steps == 0:
+        return _torch.zeros(1, latent_size, latent_length)
+
+    usable_rows = min(num_rows, latent_size)
+    # Weights match the visual band heights so what looks dominant sounds dominant.
+    row_weights = _np.array([1.0, 0.78, 0.58, 0.42, 0.30], dtype=_np.float32)
+    if usable_rows != row_weights.size:
+        row_weights = _np.linspace(1.0, 0.30, usable_rows, dtype=_np.float32)
+    else:
+        row_weights = row_weights[:usable_rows]
+    dim_slices = _np.array_split(_np.arange(latent_size), usable_rows)
+
+    step_idx = int(step_index) % num_steps
+    window_indices = [(step_idx + i) % num_steps for i in range(latent_length)]
+    # step_window[row, frame] is the painted value at that (band, time) pair.
+    step_window = _np.clip(pattern[:, window_indices].astype(_np.float32), 0.0, 1.0)
+
+    # painted=0 -> 0 (band silent), painted=1 -> +2 (strong).
+    # Per-dim alternating sign below spreads the excursion through latent space
+    # so a fully-painted row produces timbral movement rather than flat DC.
+    excursion = step_window * 2.0
+
+    z_np = _np.zeros((latent_size, latent_length), dtype=_np.float32)
+    for row_idx in range(usable_rows):
+        row_excursion = excursion[row_idx, :] * float(row_weights[row_idx])
+        dims = dim_slices[row_idx]
+        for k, dim in enumerate(dims):
+            sign = 1.0 if ((k + row_idx) % 2 == 0) else -1.0
+            z_np[dim, :] = row_excursion * sign
+
+    return _torch.from_numpy(z_np).unsqueeze(0)
+
+
+def _project_curve_to_latent(curve: list, latent_size: int, latent_length: int, seed: int = 0, intensity: float = 1.0):
+    import numpy as _np
+    import torch as _torch
+    base = _sample_curve_at(curve, latent_length)
+    # Apply intensity scaling to the base curve (makes it more/less dramatic)
+    base = base * intensity
+    # deterministic per-seed random scales (more dramatic projection)
+    rng = _np.random.RandomState(seed)
+    # Generate scales: larger variations for more noticeable effect
+    # Use a mix of base offset + variable amplitude per dimension
+    dim_centers = rng.uniform(-0.5, 0.5, size=(latent_size,)).astype(_np.float32)  # per-dim center
+    dim_scales = rng.uniform(0.8, 2.5, size=(latent_size,)).astype(_np.float32)  # per-dim amplitude (0.8-2.5x)
+    
+    # Project curve to latent space: each dimension gets a scaled + offset version of the curve
+    z_np = _np.zeros((latent_size, latent_length), dtype=_np.float32)
+    for d in range(latent_size):
+        # Curve drives both amplitude and offset
+        z_np[d, :] = (base * dim_scales[d]) + dim_centers[d]
+    
+    z = _torch.from_numpy(z_np).unsqueeze(0)  # (1, latent_size, latent_length)
+    return z
+
+
 def generate_mixed_chunk(self, active_slots):
     mixed_audio = np.zeros(self.chunk_samples, dtype=np.float32)
     decode_total_ms = 0.0
@@ -88,18 +197,30 @@ def generate_mixed_chunk(self, active_slots):
                             continue
 
                 else:
-                    density = slot.density.get()
-                    if slot.held_z is None or random.random() < density:
-                        z = torch.randn(1, slot.latent_size, slot.latent_length)
-                        z = z * slot.random_intensity.get()
-                        slot.held_z = z.clone()
-                        slot.density_hold_frames = 0
+                    if slot.input_mode.get() == "gesture":
+                        pattern = slot.subband_pattern
+                        if pattern is None:
+                            z = torch.zeros(1, slot.latent_size, slot.latent_length)
+                        else:
+                            z = _project_subband_pattern_to_latent(
+                                pattern, slot.latent_size, slot.latent_length, slot.subband_position
+                            )
+                            z = z * slot.subband_intensity.get()
+                            if pattern.shape[1] > 0:
+                                slot.subband_position = (slot.subband_position + slot.latent_length) % pattern.shape[1]
                     else:
-                        slot.density_hold_frames += 1
-                        fade = max(0.0, 1.0 - slot.density_hold_frames * 0.12)
-                        z = slot.held_z * fade
-                # Gesture stream acts as an additional control input over latent temperature.
-                z = z * slot.temperature.get() * slot.gesture_temp.get()
+                        density = slot.density.get()
+                        if slot.held_z is None or random.random() < density:
+                            z = torch.randn(1, slot.latent_size, slot.latent_length)
+                            z = z * slot.random_intensity.get()
+                            slot.held_z = z.clone()
+                            slot.density_hold_frames = 0
+                        else:
+                            slot.density_hold_frames += 1
+                            fade = max(0.0, 1.0 - slot.density_hold_frames * 0.12)
+                            z = slot.held_z * fade
+                
+                z = z * slot.temperature.get()
 
                 map_anchor = getattr(slot, "phase_map_anchor", None)
                 if map_anchor is not None:

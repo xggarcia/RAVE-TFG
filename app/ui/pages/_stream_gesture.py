@@ -58,6 +58,14 @@ class _GestureDrawWidget(QWidget):
         self.curveChanged.emit(self.get_curve())
         self.update()
 
+    def set_curve(self, points: list[tuple[float, float]]):
+        try:
+            pts = [(float(x), float(y)) for x, y in points]
+        except Exception:
+            return
+        self._points = pts if pts else [(0.0, 0.5), (1.0, 0.5)]
+        self.update()
+
     def get_curve(self):
         pts = []
         for p in self._points:

@@ -64,6 +64,10 @@ class SlotPanel(Panel):
         self._btn_audio.setFixedHeight(22)
         self._btn_audio.clicked.connect(lambda: self._set_input_mode("audio"))
 
+        self._btn_gesture = QPushButton("GESTURE")
+        self._btn_gesture.setFixedHeight(22)
+        self._btn_gesture.clicked.connect(lambda: self._set_input_mode("gesture"))
+
         self._apply_input_style()
 
         self._name_btn = QPushButton(slot_name)
@@ -78,6 +82,7 @@ class SlotPanel(Panel):
         right_row.setSpacing(6)
         right_row.addWidget(self._btn_random)
         right_row.addWidget(self._btn_audio)
+        right_row.addWidget(self._btn_gesture)
         right_row.addWidget(self._name_btn)
         right_row.addWidget(self._pwr_btn)
 
@@ -308,9 +313,15 @@ class SlotPanel(Panel):
         if self._input_mode == "random":
             self._btn_random.setStyleSheet(f"color:#000; background:{AMBER}; {_INPUT_ACTIVE} border-color:{AMBER};")
             self._btn_audio.setStyleSheet(_INPUT_INACTIVE)
-        else:
+            self._btn_gesture.setStyleSheet(_INPUT_INACTIVE)
+        elif self._input_mode == "audio":
             self._btn_random.setStyleSheet(_INPUT_INACTIVE)
             self._btn_audio.setStyleSheet(f"color:#000; background:{FG2}; {_INPUT_ACTIVE} border-color:{FG2};")
+            self._btn_gesture.setStyleSheet(_INPUT_INACTIVE)
+        else:
+            self._btn_random.setStyleSheet(_INPUT_INACTIVE)
+            self._btn_audio.setStyleSheet(_INPUT_INACTIVE)
+            self._btn_gesture.setStyleSheet(f"color:#000; background:{ACID}; {_INPUT_ACTIVE} border-color:{ACID};")
 
     @property
     def powered(self) -> bool:

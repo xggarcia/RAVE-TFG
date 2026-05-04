@@ -74,7 +74,6 @@ class _StreamHandlersMixin:
         if running:
             self.statusChanged.emit("Streaming live", ACID)
             self._set_live_preview_state(streaming=True)
-            self._apply_gesture_to_worker()
             for slot in self._slot_widgets:
                 self._worker.set_slot_enabled(slot._index, slot.powered)
                 self._worker.set_slot_input_mode(slot._index, slot.input_mode)
@@ -113,6 +112,20 @@ class _StreamHandlersMixin:
                 f"color:{FG0}; background:transparent; border:1px solid {LINE0}; "
                 f"border-radius:3px; font-size:10px; font-family:'JetBrains Mono','Consolas',monospace;"
             )
+        # Swap the shared subband widget to show *this* slot's pattern.
+        if hasattr(self, "_gesture_widget") and self._gesture_widget is not None:
+            import numpy as _np
+            pat = (self._slot_subband_patterns[index]
+                   if 0 <= index < len(self._slot_subband_patterns) else None)
+            if pat is not None:
+                self._gesture_widget.set_pattern(pat)
+            else:
+                self._gesture_widget.set_pattern(
+                    _np.zeros((self._gesture_widget.num_subbands,
+                               self._gesture_widget.n_timesteps), dtype=_np.float32)
+                )
+            if 0 <= index < len(self._slot_subband_positions):
+                self._gesture_widget.set_playhead_column(self._slot_subband_positions[index])
         if prev == index:
             return
         name = chr(65 + index) if 0 <= index < 26 else str(index + 1)
@@ -162,6 +175,13 @@ class _StreamHandlersMixin:
     def _on_master_volume_changed(self, value: float):
         if self._worker:
             self._worker.set_master_volume(value)
+
+    @Slot(float)
+    def _on_subband_intensity_changed(self, value: float):
+        self._gesture_intensity = max(0.0, min(1.0, value))
+        if self._worker:
+            self._worker.set_subband_intensity(self._gesture_intensity)
+        self.statusChanged.emit(f"Subband intensity: {self._gesture_intensity * 100:.0f}%", FG2)
 
     @Slot(int, float)
     def _on_slot_phase_changed(self, index: int, value: float):

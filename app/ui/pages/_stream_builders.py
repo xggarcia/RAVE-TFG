@@ -28,7 +28,7 @@ from app.ui.widgets.form import (
 )
 from app.ui.widgets.knob import Knob
 from app.ui.widgets.vu import VUMeter
-from app.ui.pages._stream_gesture import _GestureDrawWidget
+from app.ui.pages._stream_subbands import SubbandDrawWidget
 from app.ui.pages._stream_slot import SlotPanel
 from app.ui.pages._stream_advanced import AdvancedSlotPanel
 
@@ -100,26 +100,34 @@ class _StreamBuildersMixin:
         tb = top.body_layout()
 
         gesture_head = QHBoxLayout()
-        gesture_head.addWidget(_lbl("Gesture input (MVP)", 10, FG2, mono=True))
+        gesture_head.addWidget(_lbl("Subband Control", 10, FG2, mono=True))
         gesture_head.addStretch()
-        self._gesture_toggle_btn = QPushButton("Gesture ON" if self._gesture_enabled else "Gesture OFF")
-        self._gesture_toggle_btn.setFixedHeight(24)
-        self._gesture_toggle_btn.clicked.connect(self._toggle_gesture)
         self._gesture_clear_btn = QPushButton("Clear")
         self._gesture_clear_btn.setFixedHeight(24)
-        self._gesture_clear_btn.clicked.connect(self._clear_gesture)
+        self._gesture_clear_btn.clicked.connect(self._clear_subband)
+        self._gesture_invert_btn = QPushButton("Invert")
+        self._gesture_invert_btn.setFixedHeight(24)
+        self._gesture_invert_btn.clicked.connect(self._invert_subband)
         gesture_head.addWidget(self._gesture_clear_btn)
-        gesture_head.addWidget(self._gesture_toggle_btn)
+        gesture_head.addWidget(self._gesture_invert_btn)
         tb.addLayout(gesture_head)
 
-        self._gesture_widget = _GestureDrawWidget(self._gesture_curve)
-        self._gesture_widget.curveChanged.connect(self._on_gesture_curve_changed)
+        self._gesture_widget = SubbandDrawWidget(num_subbands=5, n_timesteps=96)
+        # Preload the currently-selected slot's pattern (if any).
+        sel = self._selected_slot if 0 <= self._selected_slot < len(self._slot_subband_patterns) else 0
+        pat = self._slot_subband_patterns[sel] if 0 <= sel < len(self._slot_subband_patterns) else None
+        if pat is not None:
+            self._gesture_widget.set_pattern(pat)
+        self._gesture_widget.subbandPatternChanged.connect(self._on_subband_pattern_changed)
         tb.addWidget(self._gesture_widget)
 
         master_row = QHBoxLayout()
         self._master_knob = Knob("MASTER", 0.75)
         self._master_knob.valueChanged.connect(self._on_master_volume_changed)
+        self._gesture_intensity_knob = Knob("SUBBAND\nINT", 1.0, accent=ACID)
+        self._gesture_intensity_knob.valueChanged.connect(self._on_subband_intensity_changed)
         master_row.addWidget(self._master_knob)
+        master_row.addWidget(self._gesture_intensity_knob)
         vu_col = QHBoxLayout()
         vu_l = VUMeter(0.0, 0.0)
         vu_r = VUMeter(0.0, 0.0)
@@ -183,7 +191,9 @@ class _StreamBuildersMixin:
         row_lay.setContentsMargins(0, 0, 0, 0)
         row_lay.setSpacing(16)
         row_lay.addWidget(grid_wrap, 1)
+        row_lay.addStretch()
         row_lay.addWidget(adv_panel)
+        row_lay.addStretch()
         self._content_layout.addWidget(row_w)
         self._content_layout.addStretch()
 
@@ -191,13 +201,12 @@ class _StreamBuildersMixin:
         self._start_btn.setEnabled(has_model and not streaming)
         self._stop_btn.setEnabled(streaming)
         self._record_btn.setEnabled(streaming)
-        self._gesture_toggle_btn.setEnabled(True)
         self._gesture_clear_btn.setEnabled(True)
+        self._gesture_invert_btn.setEnabled(True)
         self._gesture_widget.setEnabled(True)
         if not streaming:
             self._record_btn.setText("Start rec")
             self._recording_active = False
-            self._apply_gesture_to_worker()
 
     def _try_load_phase_map(self, _index: int, anchors_path: str):
         def _as_anchor_list(raw):
@@ -282,6 +291,7 @@ class _StreamBuildersMixin:
         self._worker.slotVu.connect(self._on_slot_vu)
         self._worker.slotSpectrogram.connect(self._on_slot_spectrogram)
         self._worker.slotInfo.connect(self._on_slot_info)
+        self._worker.slotSubbandPosition.connect(self._on_subband_position)
         self._worker.masterVu.connect(self._on_master_vu)
         self._worker.warning.connect(self._on_warning)
         self._worker.running.connect(self._on_running)

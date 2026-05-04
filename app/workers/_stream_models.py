@@ -79,8 +79,11 @@ class _SlotState:
         self.latent_bias: list[float] = []   # per-dim additive bias
         self.latent_scale: list[float] = []  # per-dim multiplicative scale
         self.latent_global_bias = _Var(0.0)  # additive bias applied to all latent dims
-        self.gesture_bias = _Var(0.0)        # additive bias from gesture input
-        self.gesture_temp = _Var(1.0)        # multiplicative temperature from gesture input
+
+        # Subband control: grid of (num_subbands, n_timesteps) with 0.0 or 1.0
+        self.subband_pattern = None  # torch tensor shaped (num_subbands, n_timesteps)
+        self.subband_position = 0    # current timestep in pattern (loopback)
+        self.subband_intensity = _Var(1.0)  # global control: 0.0=muted, 1.0=full
 
         self.phase_enabled = _Var(False)
         self.phase_value = _Var(0.0)

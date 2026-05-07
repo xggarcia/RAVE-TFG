@@ -299,6 +299,12 @@ class _StreamBuildersMixin:
         self._worker.finished.connect(self._on_finished)
         self._worker.start()
 
+        from tools.stream_profiler import StreamProfiler
+        self._profiler = StreamProfiler(get_worker=lambda: self._worker)
+        csv_path = self._profiler.start()
+        if csv_path:
+            self._worker.log.emit("INFO", f"[profiler] logging → {csv_path.name}")
+
     def _toggle_recording(self):
         if not self._worker:
             self.statusChanged.emit("Start streaming first to record", AMBER)

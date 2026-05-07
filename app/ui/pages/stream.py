@@ -44,6 +44,7 @@ class StreamPage(QWidget, _StreamBuildersMixin, _StreamHandlersMixin):
         # One painted pattern per slot; widget shows the selected slot's pattern.
         self._slot_subband_patterns: list[torch.Tensor | None] = [None, None]
         self._slot_subband_positions: list[int] = [0, 0]
+        self._profiler = None
         self._recording_active = False
         self._gesture_intensity = 1.0  # Subband intensity: 0.0-1.0
         self._build()

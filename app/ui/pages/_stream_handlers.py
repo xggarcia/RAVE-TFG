@@ -253,6 +253,8 @@ class _StreamHandlersMixin:
 
     @Slot(dict)
     def _on_finished(self, summary: dict):
+        if self._profiler:
+            self._profiler.stop()
         self._recording_active = False
         self._record_btn.setText("Start rec")
         self._record_btn.setEnabled(False)
@@ -266,6 +268,8 @@ class _StreamHandlersMixin:
 
     @Slot(str, str)
     def _on_failed(self, short: str, traceback: str):
+        if self._profiler:
+            self._profiler.stop()
         self._recording_active = False
         self._record_btn.setText("Start rec")
         self._record_btn.setEnabled(False)

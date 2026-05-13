@@ -1,6 +1,7 @@
 from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtWidgets import (
     QFrame,
+    QHBoxLayout,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -130,7 +131,25 @@ class StreamPage(QWidget, _StreamBuildersMixin, _StreamHandlersMixin):
         self._content_layout.setSpacing(18)
 
         self._stack_wrap.setWidget(self._content)
-        root.addWidget(self._stack_wrap, 1)
+
+        # Sticky right column for the Advanced panel — kept outside the scroll
+        # so it stays in the viewport regardless of how many slots are loaded.
+        self._adv_host = QWidget()
+        self._adv_host.setFixedWidth(380)
+        self._adv_host.setStyleSheet(f"background:{BG0};")
+        self._adv_host_layout = QVBoxLayout(self._adv_host)
+        self._adv_host_layout.setContentsMargins(0, 24, 24, 24)
+        self._adv_host_layout.setSpacing(0)
+        self._adv_host_layout.setAlignment(Qt.AlignTop)
+        self._adv_host.setVisible(False)
+
+        body = QWidget()
+        body_layout = QHBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(0)
+        body_layout.addWidget(self._stack_wrap, 1)
+        body_layout.addWidget(self._adv_host, 0)
+        root.addWidget(body, 1)
 
     def _clear_content(self):
         self._slot_widgets = []
@@ -141,6 +160,11 @@ class StreamPage(QWidget, _StreamBuildersMixin, _StreamHandlersMixin):
             item = self._content_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+        while self._adv_host_layout.count():
+            item = self._adv_host_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self._adv_host.setVisible(False)
 
     def _refresh_models(self):
         from app._paths import get_repo_root

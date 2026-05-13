@@ -185,17 +185,13 @@ class _StreamBuildersMixin:
         else:
             adv_panel.set_slot_unloaded(sel, name)
 
-        row_w = QWidget()
-        row_w.setStyleSheet("background:transparent;")
-        row_lay = QHBoxLayout(row_w)
-        row_lay.setContentsMargins(0, 0, 0, 0)
-        row_lay.setSpacing(16)
-        row_lay.addWidget(grid_wrap, 1)
-        row_lay.addStretch()
-        row_lay.addWidget(adv_panel)
-        row_lay.addStretch()
-        self._content_layout.addWidget(row_w)
+        self._content_layout.addWidget(grid_wrap)
         self._content_layout.addStretch()
+
+        # Mount the Advanced panel in the sticky right column so it stays
+        # in the viewport even when many slots push the grid below the fold.
+        self._adv_host_layout.addWidget(adv_panel, 0, Qt.AlignTop | Qt.AlignHCenter)
+        self._adv_host.setVisible(True)
 
         has_model = any(m is not None for m in self._slot_assignments)
         self._start_btn.setEnabled(has_model and not streaming)

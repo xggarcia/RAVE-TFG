@@ -194,7 +194,7 @@ class _TrainOnlyPage(QWidget):
             return
         try:
             sys.path.insert(0, ".")
-            from src.train import find_latest_run
+            from src.core.train import find_latest_run
             path = find_latest_run("models/user_model/checkpoints", name)
             if path:
                 self._resume_path = path
@@ -231,7 +231,7 @@ class _TrainOnlyPage(QWidget):
         extra = [c.key for c in self._chips if c.is_on]
         ckpt  = (self._resume_path if self._use_resume else None)
 
-        from src.train import _detect_gpu_flag
+        from src.core.train import _detect_gpu_flag
         cmd = [
             "rave", "train",
             "--config", self._config_box.currentText(),

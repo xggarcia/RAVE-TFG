@@ -114,7 +114,7 @@ class FinalDownloadDetail(QWidget):
             self._prog.start("Missing API key")
             self._prog.finish(False, "Set FREESOUND_API_KEY in .env or enter it above.")
             return
-        from src.database_creation.download_csv import download_from_csv
+        from src.database.download_csv import download_from_csv
         self._prog.start("Downloading audio…")
         self._worker = DatasetWorker(
             download_from_csv, Path(csv_path), Path(out_path), api_key,
@@ -179,7 +179,7 @@ class NormalizeDetail(QWidget):
         folder = self._folder.path
         if not folder:
             return
-        from src.database_creation.normalize_volume import normalize_directory
+        from src.database.normalize_volume import normalize_directory
         target = float(self._slider.value())
         self._prog.start("Normalizing…")
         self._worker = DatasetWorker(normalize_directory, Path(folder), target_db=target)
@@ -269,7 +269,7 @@ class MergeDetail(QWidget):
         out = self._out_csv.path
         if not out:
             return
-        from src.database_creation.merge_selected_csv import merge_selected_csvs
+        from src.database.merge_selected_csv import merge_selected_csvs
         input_dir = Path(self._csv_paths[0]).parent
         self._prog.start("Merging CSVs…")
         self._worker = DatasetWorker(merge_selected_csvs, input_dir, Path(out))
@@ -325,7 +325,7 @@ class ConvertDetail(QWidget):
         src = self._src.path
         if not src:
             return
-        from src.database_creation.convert_format import convert_directory
+        from src.database.convert_format import convert_directory
         sr = int(self._sr.value)
         ch = int(self._ch.value)
         subtype = self._subtype.currentText().split()[0]

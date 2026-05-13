@@ -42,35 +42,6 @@ def build_parser():
     generate_parser.add_argument("--no-random", action="store_true", help="Use input audio's latent instead of random")
 
     subparsers.add_parser("clean", help="Delete all user data (preprocessed, checkpoints, exports, outputs)")
-    subparsers.add_parser("stream", help="Launch multi-model GUI streaming")
-
-    # Train prior command temporarily disabled.
-    # train_prior_parser = subparsers.add_parser("train_prior", help="Train a prior for a RAVE model using MSPrior")
-    # train_prior_parser.add_argument("--rave", required=True, help="Path to RAVE checkpoint (.ckpt) - NOT .ts file")
-    # train_prior_parser.add_argument("--audio", required=True, help="Path to audio dataset folder (same data used to train RAVE)")
-    # train_prior_parser.add_argument("--name", default="my_prior", help="Name for the prior model (default: my_prior)")
-    # train_prior_parser.add_argument(
-    #     "--config",
-    #     default="decoder_only",
-    #     choices=["decoder_only", "recurrent", "encoder_decoder", "encoder_decoder_continuous"],
-    #     help="MSPrior configuration (default: decoder_only)",
-    # )
-    # train_prior_parser.add_argument("--output", default="models/user_model/prior", help="Output path for prior (default: models/user_model/prior)")
-
-    phase_train_parser = subparsers.add_parser("phase_train", help="Phase-aware training: train + generate phase anchors")
-    phase_train_parser.add_argument("audio_base", help="Base folder with phase subfolders (e.g. soft_rain/, rain/, storm/)")
-    phase_train_parser.add_argument("--name", default="my_phase_model", help="Model name (default: my_phase_model)")
-    phase_train_parser.add_argument("--config", default="v2_small", help="Architecture config (default: v2_small)")
-    phase_train_parser.add_argument("--channels", type=int, default=1, help="Number of audio channels (default: 1)")
-    phase_train_parser.add_argument("--val-every", type=int, default=1000, help="Checkpoint every N steps (default: 1000)")
-    phase_train_parser.add_argument("--max-steps", type=int, default=6000000, help="Max training steps (default: 6000000)")
-    phase_train_parser.add_argument("--batch-size", type=int, default=8, help="Batch size (default: 8)")
-    phase_train_parser.add_argument("--phases", help="Comma-separated phase order (default: alphabetical)")
-
-    gen_anchors_parser = subparsers.add_parser("gen_anchors", help="Generate phase anchors for an existing model")
-    gen_anchors_parser.add_argument("--model", required=True, help="Path to exported .ts model")
-    gen_anchors_parser.add_argument("--audio-base", required=True, help="Base folder with phase subfolders")
-    gen_anchors_parser.add_argument("--phases", help="Comma-separated phase order (default: alphabetical)")
 
     return parser
 
@@ -78,7 +49,7 @@ def build_parser():
 def run_command(args):
     """Execute a parsed CLI command."""
     if args.command == "preprocess":
-        from src.preprocess import PreprocessDataset
+        from src.core.preprocess import PreprocessDataset
 
         PreprocessDataset(
             audio_path=args.audio_path,
@@ -88,7 +59,7 @@ def run_command(args):
         )
 
     elif args.command == "train":
-        from src.train import TrainModel
+        from src.core.train import TrainModel
 
         TrainModel(
             name=args.name,
@@ -104,12 +75,12 @@ def run_command(args):
         )
 
     elif args.command == "export":
-        from src.export import ExportModel
+        from src.core.export import ExportModel
 
         ExportModel(run_path=args.run_path)
 
     elif args.command == "workflow":
-        from src.workflow import train_workflow
+        from src.core.workflow import train_workflow
 
         train_workflow(
             audio_path=args.audio_path,
@@ -121,7 +92,7 @@ def run_command(args):
         )
 
     elif args.command == "generate":
-        from src.generate import UseModel
+        from src.core.generate import UseModel
 
         UseModel(
             model_path=args.model,
@@ -131,48 +102,6 @@ def run_command(args):
         )
 
     elif args.command == "clean":
-        from src.clean import CleanUserData
+        from src.core.clean import CleanUserData
 
         CleanUserData()
-
-    elif args.command == "stream":
-        from src.stream_gui import launch_gui
-
-        launch_gui()
-
-    # Train prior command temporarily disabled.
-    # elif args.command == "train_prior":
-    #     from src.train_prior import TrainPrior
-    #
-    #     TrainPrior(
-    #         rave_model_path=args.rave,
-    #         audio_path=args.audio,
-    #         prior_name=args.name,
-    #         config=args.config,
-    #         output_path=args.output,
-    #     )
-
-    elif args.command == "phase_train":
-        from src.phase_workflow import phase_train_workflow
-
-        phase_labels = [l.strip() for l in args.phases.split(",")] if args.phases else None
-        phase_train_workflow(
-            audio_base_path=args.audio_base,
-            phase_labels=phase_labels,
-            model_name=args.name,
-            config=args.config,
-            channels=args.channels,
-            val_every=args.val_every,
-            max_steps=args.max_steps,
-            batch_size=args.batch_size,
-        )
-
-    elif args.command == "gen_anchors":
-        from src.phase_workflow import generate_anchors_only
-
-        phase_labels = [l.strip() for l in args.phases.split(",")] if args.phases else None
-        generate_anchors_only(
-            model_path=args.model,
-            audio_base_path=args.audio_base,
-            phase_labels=phase_labels,
-        )

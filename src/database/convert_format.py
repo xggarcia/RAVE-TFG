@@ -7,8 +7,8 @@ format using:
 - WAV writing with soundfile
 
 Usage:
-    python -m src.database_creation.convert_format --input-dir input_data/user_data/rain
-    python -m src.database_creation.convert_format --input-dir input_data/user_data/rain --target-sr 44100 --target-channels 1 --target-subtype PCM_16
+    python -m src.database.convert_format --input-dir input_data/user_data/rain
+    python -m src.database.convert_format --input-dir input_data/user_data/rain --target-sr 44100 --target-channels 1 --target-subtype PCM_16
 """
 
 from __future__ import annotations

@@ -10,23 +10,15 @@ class MenuContext:
         train_fn,
         export_fn,
         generate_fn,
-        launch_gui_fn,
         workflow_fn,
         clean_fn,
-        train_prior_fn,
-        phase_train_fn=None,
-        generate_anchors_fn=None,
     ):
         self.preprocess_fn = preprocess_fn
         self.train_fn = train_fn
         self.export_fn = export_fn
         self.generate_fn = generate_fn
-        self.launch_gui_fn = launch_gui_fn
         self.workflow_fn = workflow_fn
         self.clean_fn = clean_fn
-        self.train_prior_fn = train_prior_fn
-        self.phase_train_fn = phase_train_fn
-        self.generate_anchors_fn = generate_anchors_fn
 
     @staticmethod
     def ask_path(prompt):

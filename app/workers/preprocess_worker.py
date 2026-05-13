@@ -35,7 +35,7 @@ class PreprocessWorker(QThread):
         sys.stdout = _Tee(old_out, self.log.emit)
         sys.stderr = _Tee(old_err, self.log.emit)
         try:
-            from src.preprocess import PreprocessDataset
+            from src.core.preprocess import PreprocessDataset
             out = PreprocessDataset(
                 audio_path=self._audio_path,
                 channels=self._channels,

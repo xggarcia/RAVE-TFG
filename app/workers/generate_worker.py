@@ -43,7 +43,7 @@ class GenerateWorker(QThread):
         sys.stdout = _Tee(old_out, self.log.emit)
         sys.stderr = _Tee(old_err, self.log.emit)
         try:
-            from src.generate import UseModel
+            from src.core.generate import UseModel
 
             out = UseModel(
                 model_path=self._model_path,

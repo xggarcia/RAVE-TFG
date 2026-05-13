@@ -21,7 +21,7 @@ from typing import Optional
 import requests
 
 try:
-	from src.database_creation.freesound_auth import get_access_token, load_oauth2_credentials
+	from src.database.freesound_auth import get_access_token, load_oauth2_credentials
 except ModuleNotFoundError:
 	from freesound_auth import get_access_token, load_oauth2_credentials
 

@@ -15,11 +15,11 @@ def run_dataset_do_all(ctx):
     final_root = input("Final audio output root [input_data/user_data]: ").strip() or "input_data/user_data"
 
     try:
-        from src.database_creation.create_database import run_create_database_workflow
-        from src.database_creation.download_csv import _load_dotenv
+        from src.database.create_database import run_create_database_workflow
+        from src.database.download_csv import _load_dotenv
     except ModuleNotFoundError:
-        from database_creation.create_database import run_create_database_workflow
-        from database_creation.download_csv import _load_dotenv
+        from database.create_database import run_create_database_workflow
+        from database.download_csv import _load_dotenv
 
     _load_dotenv()
     run_create_database_workflow(
@@ -44,13 +44,13 @@ def run_dataset_first_download_only(ctx):
     try:
         from dataclasses import replace
 
-        from src.database_creation.download_csv import _load_dotenv
-        from src.database_creation.first_download_freesound import download_sounds_freesound, read_jobs_from_csv
+        from src.database.download_csv import _load_dotenv
+        from src.database.first_download_freesound import download_sounds_freesound, read_jobs_from_csv
     except ModuleNotFoundError:
         from dataclasses import replace
 
-        from database_creation.download_csv import _load_dotenv
-        from database_creation.first_download_freesound import download_sounds_freesound, read_jobs_from_csv
+        from database.download_csv import _load_dotenv
+        from database.first_download_freesound import download_sounds_freesound, read_jobs_from_csv
 
     _load_dotenv()
 
@@ -88,9 +88,9 @@ def run_dataset_select_only(ctx):
     csv_name = input("Selected IDs CSV filename [selected_sound_ids.csv]: ").strip() or "selected_sound_ids.csv"
 
     try:
-        from src.database_creation.create_csv import gather_candidates, run_selection, write_selected_ids_csv
+        from src.database.create_csv import gather_candidates, run_selection, write_selected_ids_csv
     except ModuleNotFoundError:
-        from database_creation.create_csv import gather_candidates, run_selection, write_selected_ids_csv
+        from database.create_csv import gather_candidates, run_selection, write_selected_ids_csv
 
     candidates = gather_candidates(Path(preview_root))
     if not candidates:
@@ -120,9 +120,9 @@ def run_dataset_download_only(ctx):
         return
 
     try:
-        from src.database_creation.download_csv import _load_dotenv, _read_sound_ids, download_sound_by_id
+        from src.database.download_csv import _load_dotenv, _read_sound_ids, download_sound_by_id
     except ModuleNotFoundError:
-        from database_creation.download_csv import _load_dotenv, _read_sound_ids, download_sound_by_id
+        from database.download_csv import _load_dotenv, _read_sound_ids, download_sound_by_id
 
     _load_dotenv()
     api_key = os.getenv("FREESOUND_API_KEY", "").strip()
@@ -173,9 +173,9 @@ def run_normalize_volume(ctx):
         return
 
     try:
-        from src.database_creation.normalize_volume import normalize_directory
+        from src.database.normalize_volume import normalize_directory
     except ModuleNotFoundError:
-        from database_creation.normalize_volume import normalize_directory
+        from database.normalize_volume import normalize_directory
 
     print(f"\nNormalizing audio in: {folder}  (target: {target_db:.1f} dBFS)")
     ok, total = normalize_directory(Path(folder), target_db)
@@ -199,9 +199,9 @@ def run_merge_selected_csv(ctx):
     output_path = output_path or "database/database_download/user/combined_ids.csv"
 
     try:
-        from src.database_creation.merge_selected_csv import merge_selected_csvs
+        from src.database.merge_selected_csv import merge_selected_csvs
     except ModuleNotFoundError:
-        from database_creation.merge_selected_csv import merge_selected_csvs
+        from database.merge_selected_csv import merge_selected_csvs
 
     total = merge_selected_csvs(Path(input_dir), Path(output_path))
     if total:
@@ -235,9 +235,9 @@ def run_convert_format(ctx):
         return
 
     try:
-        from src.database_creation.convert_format import convert_directory
+        from src.database.convert_format import convert_directory
     except ModuleNotFoundError:
-        from database_creation.convert_format import convert_directory
+        from database.convert_format import convert_directory
 
     print(
         f"\nConverting audio in: {folder}  "

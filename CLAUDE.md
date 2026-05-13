@@ -160,16 +160,16 @@ Most complex. Budget ~1–2 weeks.
 
 ```
 rave-tfg/
-├── CLAUDE.md              ← this file
-├── design-mock/           ← the HTML prototype (reference only, do not modify)
+├── CLAUDE.md
+├── design-mock/           ← HTML prototype (reference only, do not modify)
 ├── pyproject.toml
-├── rave_core/             ← existing CLI logic — keep importable
-│   ├── preprocess.py
-│   ├── train.py
-│   ├── export.py
-│   ├── stream.py
-│   └── dataset/…
-├── app/                   ← new desktop app
+├── main.py                ← CLI entry (interactive menu + argparse subcommands)
+├── src/                   ← backend (importable by CLI and GUI)
+│   ├── cli/               ← interactive menu + argparse subcommands
+│   ├── core/              ← preprocess, train, export, generate, workflow, clean
+│   ├── streaming/         ← realtime inference engine (no UI)
+│   └── database/          ← Freesound ingest + audio normalize/convert
+├── app/                   ← PySide6 desktop app
 │   ├── __main__.py
 │   ├── ui/
 │   │   ├── tokens.qss
@@ -178,9 +178,16 @@ rave-tfg/
 │   │   ├── widgets/       ← Knob, VU, Waveform, PhasePad, …
 │   │   └── pages/         ← one file per screen
 │   ├── workers/           ← QThread/QProcess wrappers for each core op
-│   └── models/             ← dataclasses + stateful models (Runs, Models, Devices)
+│   └── models/            ← dataclasses + stateful models (Runs, Models, Devices)
+├── tools/                 ← lint/dev utilities
+├── hooks/                 ← PyInstaller hooks
+├── install/, installer/   ← OS install scripts and Windows bundler
+├── docs/                  ← project docs (see REPO_STRUCTURE.md)
 └── tests/
 ```
+
+See [docs/REPO_STRUCTURE.md](docs/REPO_STRUCTURE.md) for a per-file map and the
+rationale behind the layout.
 
 ## Design tokens → QSS mapping
 

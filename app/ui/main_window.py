@@ -12,9 +12,6 @@ from app.ui.pages.export import ExportPage
 from app.ui.pages.clean import CleanPage
 from app.ui.pages.train import TrainPage
 from app.ui.pages.dataset import DatasetPage
-# from app.ui.pages.prior import PriorPage  # temporarily disabled
-# from app.ui.pages.phase import PhasePage  # disabled for now
-from app.ui.pages.anchors import AnchorsPage
 from app.ui.pages.workflow import WorkflowPage
 from app.ui.pages.placeholder import PlaceholderPage
 
@@ -77,9 +74,6 @@ class MainWindow(QMainWindow):
         self._register_page("clean", CleanPage())
         self._register_page("train", TrainPage())
         self._register_page("dataset", DatasetPage())
-        # self._register_page("prior", PriorPage())  # temporarily disabled
-        # self._register_page("phase", PhasePage())  # disabled for now
-        self._register_page("anchors", AnchorsPage())
         self._register_page("workflow", WorkflowPage())
 
         for pid in _PLACEHOLDER_PAGES:

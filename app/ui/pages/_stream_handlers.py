@@ -246,10 +246,20 @@ class _StreamHandlersMixin:
 
         self._start_btn.setEnabled(any(m is not None for m in self._slot_assignments))
 
-        if self._worker:
+        self._ensure_worker()
+        if self._worker.isRunning():
+            # Mid-stream: push via pending-changes queue (run loop validates SR/chunk size)
             self._worker.set_slot_model(index, value)
             name = Path(value).name if value else "empty"
-            self.statusChanged.emit(f"Slot {index + 1} model set to {name}", FG2)
+            self.statusChanged.emit(f"Slot {index + 1} model → {name}", FG2)
+        else:
+            # Pre-stream: load immediately in background
+            self._worker.load_model_async(index, value)
+            if value:
+                name = Path(value).name
+                self.statusChanged.emit(f"Loading slot {index + 1}: {name}…", AMBER)
+            else:
+                self.statusChanged.emit(f"Slot {index + 1} cleared", FG2)
 
     @Slot(dict)
     def _on_finished(self, summary: dict):
@@ -261,9 +271,9 @@ class _StreamHandlersMixin:
         self.statusChanged.emit(
             f"Stream stopped · underruns={summary.get('underruns', 0)}", FG2,
         )
-        self._worker = None
+        # Keep _worker alive so loaded models are preserved for the next run
         self._stop_btn.setEnabled(False)
-        self._start_btn.setEnabled(True)
+        self._start_btn.setEnabled(any(m is not None for m in self._slot_assignments))
         self._set_live_preview_state()
 
     @Slot(str, str)

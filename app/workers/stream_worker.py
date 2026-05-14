@@ -35,11 +35,13 @@ class StreamWorker(QThread):
     warning = Signal(str)
     running = Signal(bool)
 
-    def __init__(self, model_paths: list[str | None], sample_rate: int = 44100, block_size: int = 256):
+    def __init__(self, model_paths: list[str | None], sample_rate: int = 44100, block_size: int = 256,
+                 fixed_stride: int | None = None):
         super().__init__()
         self._model_paths = list(model_paths)
         self._sample_rate = sample_rate
         self._block_size = block_size
+        self._fixed_stride = fixed_stride
 
         self._stop_event = threading.Event()
         self._lock = threading.Lock()
@@ -49,6 +51,7 @@ class StreamWorker(QThread):
         self._slots: list[_SlotState] = [_SlotState(i) for i in range(len(self._model_paths))]
         self._phase_xy = (0.5, 0.5)
         self._pending_model_changes: list[tuple[int, str | None]] = []
+        self._loading_threads: list = []
 
         self._subband_intensity = 1.0  # Global subband control intensity (0.0-1.0)
 
@@ -61,6 +64,29 @@ class StreamWorker(QThread):
         self._stop_event.set()
         if self._engine is not None:
             self._engine.stop()
+
+    def add_slot(self):
+        with self._lock:
+            self._slots.append(_SlotState(len(self._slots)))
+
+    def load_model_async(self, index: int, model_path: str | None):
+        """Load (or clear) a slot model in a background thread — no need to start streaming first."""
+        while len(self._slots) <= index:
+            self.add_slot()
+        if not model_path:
+            with self._lock:
+                _clear_slot_model(self._slots[index])
+            self.slotInfo.emit(index, 0)
+            return
+        t = _ModelLoadThread(self, index, model_path)
+        self._loading_threads.append(t)
+        t.finished.connect(lambda: self._loading_threads.remove(t) if t in self._loading_threads else None)
+        t.start()
+
+    def _cleanup_loading_threads(self):
+        for t in list(self._loading_threads):
+            if t.isRunning():
+                t.wait()
 
     def set_slot_params(self, index: int, gain: float | None = None, temp: float | None = None,
                         smooth: float | None = None, dry_wet: float | None = None,
@@ -200,15 +226,24 @@ class StreamWorker(QThread):
 
             self._stop_event.clear()
 
-            if self._model_paths:
-                for idx, model_path in enumerate(self._model_paths):
-                    if not model_path:
-                        continue
-                    label = f"Load model {idx + 1}"
-                    self.stage.emit(label, False, True)
-                    _load_slot_model(self, idx, model_path)
-                    self.stage.emit(label, True, False)
-                    self.log.emit("INFO", f"Loaded {model_path}")
+            # Wait for any background model loads to finish before starting audio
+            self._cleanup_loading_threads()
+
+            # Load models for any slot that was assigned but not yet loaded
+            for idx in range(len(self._slots)):
+                slot = self._slots[idx]
+                if slot.model is not None:
+                    # Pre-loaded by load_model_async — emit stage as done
+                    self.stage.emit(f"Load model {idx + 1}", True, False)
+                    continue
+                model_path = self._model_paths[idx] if idx < len(self._model_paths) else None
+                if not model_path:
+                    continue
+                label = f"Load model {idx + 1}"
+                self.stage.emit(label, False, True)
+                _load_slot_model(self, idx, model_path)
+                self.stage.emit(label, True, False)
+                self.log.emit("INFO", f"Loaded {model_path}")
 
             active_slots = self._get_active_slots()
             if not active_slots:
@@ -248,6 +283,7 @@ class StreamWorker(QThread):
                 sr=self._sample_rate,
                 chunk_samples=self._block_size,
                 performance_mode="Balanced",
+                fixed_stride=self._fixed_stride,
             )
             self.stage.emit("Allocate buffers", True, False)
             self._engine.start()
@@ -321,3 +357,19 @@ class StreamWorker(QThread):
         except Exception as exc:
             self.running.emit(False)
             self.failed.emit(str(exc), traceback.format_exc())
+
+
+class _ModelLoadThread(QThread):
+    """Loads a single model into a slot in a background thread."""
+
+    def __init__(self, worker: StreamWorker, index: int, model_path: str):
+        super().__init__()
+        self._worker = worker
+        self._index = index
+        self._model_path = model_path
+
+    def run(self):
+        try:
+            _load_slot_model(self._worker, self._index, self._model_path)
+        except Exception as exc:
+            self._worker.warning.emit(f"Slot {self._index + 1} load failed: {exc}")

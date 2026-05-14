@@ -53,15 +53,19 @@ class StreamingEngine:
             return {"queue_size": 10, "base_stride": 2, "max_stride": 6}
         return {"queue_size": 6, "base_stride": 1, "max_stride": 4}
 
-    def configure(self, stream, sr, chunk_samples, performance_mode):
+    def configure(self, stream, sr, chunk_samples, performance_mode, fixed_stride: int | None = None):
         self.stream = stream
         self.sr = sr
         self.chunk_samples = chunk_samples
 
         profile = self.profile_for_mode(performance_mode)
         self.queue_maxsize = profile["queue_size"]
-        self.base_decode_stride = profile["base_stride"]
-        self.max_decode_stride = profile["max_stride"]
+        if fixed_stride is not None:
+            self.base_decode_stride = fixed_stride
+            self.max_decode_stride = fixed_stride
+        else:
+            self.base_decode_stride = profile["base_stride"]
+            self.max_decode_stride = profile["max_stride"]
         self.decode_stride = self.base_decode_stride
 
         self.audio_queue = queue.Queue(maxsize=self.queue_maxsize)

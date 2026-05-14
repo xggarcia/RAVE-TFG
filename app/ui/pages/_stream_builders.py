@@ -68,6 +68,7 @@ class _StreamBuildersMixin:
         self._record_btn.setEnabled(False)
         self._record_btn.setText("Start rec")
         self._recording_active = False
+        self._stride_combo.setEnabled(True)
 
     def _set_loading_state(self):
         self._state = "loading"
@@ -166,10 +167,9 @@ class _StreamBuildersMixin:
             self._slot_widgets.append(slot)
             grid.addWidget(slot, i // 2, i % 2)
 
-        if not streaming:
-            n = len(self._slot_assignments)
-            add_btn = self._make_add_slot_btn()
-            grid.addWidget(add_btn, n // 2, n % 2)
+        n = len(self._slot_assignments)
+        add_btn = self._make_add_slot_btn()
+        grid.addWidget(add_btn, n // 2, n % 2)
 
         adv_panel = AdvancedSlotPanel()
         adv_panel.latentDimChanged.connect(self._on_adv_latent_dim)
@@ -201,12 +201,14 @@ class _StreamBuildersMixin:
         self._start_btn.setEnabled(has_model and not streaming)
         self._stop_btn.setEnabled(streaming)
         self._record_btn.setEnabled(streaming)
+        self._stride_combo.setEnabled(not streaming)
         self._gesture_clear_btn.setEnabled(True)
         self._gesture_invert_btn.setEnabled(True)
         self._gesture_widget.setEnabled(True)
         if not streaming:
             self._record_btn.setText("Start rec")
             self._recording_active = False
+        # "Add slot" button is always available (even mid-stream)
 
     def _try_load_phase_map(self, _index: int, anchors_path: str):
         def _as_anchor_list(raw):
@@ -272,31 +274,22 @@ class _StreamBuildersMixin:
                 self._adv_panel.clear_phase_map()
 
     def _start_stream(self):
-        from app.workers.stream_worker import StreamWorker
-
-        if self._worker:
+        if self._is_streaming():
             return
         if not any(m is not None for m in self._slot_assignments):
             self._set_empty_state()
             return
 
+        self._ensure_worker()
+
+        # Sync model paths and stride so run() picks up the latest values
+        self._worker._model_paths = list(self._slot_assignments)
+        self._worker._fixed_stride = self._fixed_stride
+
         self._set_loading_state()
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
 
-        selected = list(self._slot_assignments)
-        self._worker = StreamWorker(selected)
-        self._worker.stage.connect(self._on_stage)
-        self._worker.log.connect(self._on_log)
-        self._worker.slotVu.connect(self._on_slot_vu)
-        self._worker.slotSpectrogram.connect(self._on_slot_spectrogram)
-        self._worker.slotInfo.connect(self._on_slot_info)
-        self._worker.slotSubbandPosition.connect(self._on_subband_position)
-        self._worker.masterVu.connect(self._on_master_vu)
-        self._worker.warning.connect(self._on_warning)
-        self._worker.running.connect(self._on_running)
-        self._worker.failed.connect(self._on_failed)
-        self._worker.finished.connect(self._on_finished)
         self._worker.start()
 
         from tools.stream_profiler import StreamProfiler

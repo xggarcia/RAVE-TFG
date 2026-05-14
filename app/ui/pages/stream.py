@@ -1,5 +1,6 @@
 from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtWidgets import (
+    QComboBox,
     QFrame,
     QPushButton,
     QScrollArea,
@@ -47,6 +48,8 @@ class StreamPage(QWidget, _StreamBuildersMixin, _StreamHandlersMixin):
         self._profiler = None
         self._recording_active = False
         self._gesture_intensity = 1.0  # Subband intensity: 0.0-1.0
+        self._fixed_stride: int | None = None
+        self._stride_combo: QComboBox | None = None
         self._build()
         self._refresh_models()
 
@@ -85,6 +88,9 @@ class StreamPage(QWidget, _StreamBuildersMixin, _StreamHandlersMixin):
             return False
         return self._slot_assignments[index] is not None and self._slot_latent_sizes[index] is not None
 
+    def _on_stride_changed(self, index: int):
+        self._fixed_stride = self._stride_combo.itemData(index)
+
     def _build(self):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -110,12 +116,19 @@ class StreamPage(QWidget, _StreamBuildersMixin, _StreamHandlersMixin):
         self._record_btn.setEnabled(False)
         self._record_btn.clicked.connect(self._toggle_recording)
 
+        self._stride_combo = QComboBox()
+        self._stride_combo.setFixedHeight(30)
+        self._stride_combo.setToolTip("Stride fijo para EXP-06 (Adaptive = comportamiento normal)")
+        for label, value in [("Adaptive", None), ("Stride 1", 1), ("Stride 2", 2), ("Stride 4", 4)]:
+            self._stride_combo.addItem(label, value)
+        self._stride_combo.currentIndexChanged.connect(self._on_stride_changed)
+
         root.addWidget(
             PageHeader(
                 crumbs=["Generate & Stream", "Streaming GUI"],
                 title="Multi-model streaming",
                 desc="Realtime phase interpolation between RAVE models.",
-                actions=[self._scan_btn, self._record_btn, self._stop_btn, self._start_btn],
+                actions=[self._scan_btn, self._stride_combo, self._record_btn, self._stop_btn, self._start_btn],
             )
         )
 
@@ -142,6 +155,28 @@ class StreamPage(QWidget, _StreamBuildersMixin, _StreamHandlersMixin):
             if item.widget():
                 item.widget().deleteLater()
 
+    def _ensure_worker(self):
+        """Create and wire up the StreamWorker if it doesn't exist yet."""
+        if self._worker is not None:
+            return
+        from app.workers.stream_worker import StreamWorker
+        n = max(len(self._slot_assignments), 1)
+        self._worker = StreamWorker([None] * n, fixed_stride=self._fixed_stride)
+        self._worker.stage.connect(self._on_stage)
+        self._worker.log.connect(self._on_log)
+        self._worker.slotVu.connect(self._on_slot_vu)
+        self._worker.slotSpectrogram.connect(self._on_slot_spectrogram)
+        self._worker.slotInfo.connect(self._on_slot_info)
+        self._worker.slotSubbandPosition.connect(self._on_subband_position)
+        self._worker.masterVu.connect(self._on_master_vu)
+        self._worker.warning.connect(self._on_warning)
+        self._worker.running.connect(self._on_running)
+        self._worker.failed.connect(self._on_failed)
+        self._worker.finished.connect(self._on_finished)
+
+    def _is_streaming(self) -> bool:
+        return self._worker is not None and self._worker.isRunning()
+
     def _refresh_models(self):
         from app._paths import get_repo_root
         root = get_repo_root()
@@ -150,12 +185,7 @@ class StreamPage(QWidget, _StreamBuildersMixin, _StreamHandlersMixin):
             if folder.exists():
                 candidates.extend(str(p) for p in folder.glob("*.ts"))
         self._models = sorted(candidates)
-
-        # Always show the streaming UI regardless of model presence
-        if self._worker:
-            self._set_live_preview_state(streaming=True)
-        else:
-            self._set_live_preview_state()
+        self._set_live_preview_state(streaming=self._is_streaming())
 
     def _make_add_slot_btn(self) -> QWidget:
         w = QWidget()
@@ -176,7 +206,9 @@ class StreamPage(QWidget, _StreamBuildersMixin, _StreamHandlersMixin):
         self._slot_adv_state.append(self._default_adv_state())
         self._slot_param_state.append(self._default_slot_params())
         self._slot_subband_patterns.append(None)
-        self._set_live_preview_state()
+        self._ensure_worker()
+        self._worker.add_slot()
+        self._set_live_preview_state(streaming=self._is_streaming())
 
     def _stop_stream(self):
         if self._worker:

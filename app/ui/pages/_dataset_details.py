@@ -169,7 +169,7 @@ class DoAllDetail(QWidget):
 
         if query and api_key and not sel_csv.exists():
             # Stage 1: download previews into {folder}/previews/
-            from src.database_creation.first_download_freesound import (
+            from src.database.first_download_freesound import (
                 read_jobs_from_csv, download_sounds_freesound,
             )
             _query = query
@@ -214,9 +214,9 @@ class DoAllDetail(QWidget):
 
         if sel_csv.exists() and api_key:
             # Stages 3-5: final download → normalize → convert
-            from src.database_creation.download_csv import download_from_csv
-            from src.database_creation.normalize_volume import normalize_directory
-            from src.database_creation.convert_format import convert_directory
+            from src.database.download_csv import download_from_csv
+            from src.database.normalize_volume import normalize_directory
+            from src.database.convert_format import convert_directory
 
             final_dir = Path(folder) / "audio"
             _csv = sel_csv

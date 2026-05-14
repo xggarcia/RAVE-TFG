@@ -26,7 +26,7 @@ from typing import Optional
 
 import requests
 
-from src.database_creation._freesound_api import (
+from src.database._freesound_api import (
 	FREESOUND_BASE_URL,
 	_build_filter,
 	_clean_text,

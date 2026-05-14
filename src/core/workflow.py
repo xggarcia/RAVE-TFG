@@ -2,9 +2,9 @@
 """
 Complete training workflow: preprocess → train → export
 """
-from src.preprocess import PreprocessDataset
-from src.train import TrainModel
-from src.export import ExportModel
+from src.core.preprocess import PreprocessDataset
+from src.core.train import TrainModel
+from src.core.export import ExportModel
 
 
 def train_workflow(

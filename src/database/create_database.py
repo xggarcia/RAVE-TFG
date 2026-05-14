@@ -18,14 +18,14 @@ from dataclasses import replace
 from pathlib import Path
 
 try:
-	from src.database_creation.create_csv import gather_candidates, run_selection, write_selected_ids_csv
-	from src.database_creation.download_csv import _load_dotenv, download_sound_by_id
-	from src.database_creation.first_download_freesound import (
+	from src.database.create_csv import gather_candidates, run_selection, write_selected_ids_csv
+	from src.database.download_csv import _load_dotenv, download_sound_by_id
+	from src.database.first_download_freesound import (
 		download_sounds_freesound,
 		read_jobs_from_csv,
 	)
-	from src.database_creation.normalize_volume import normalize_directory
-	from src.database_creation.convert_format import convert_directory
+	from src.database.normalize_volume import normalize_directory
+	from src.database.convert_format import convert_directory
 except ModuleNotFoundError:
 	# Support direct execution: `python src/database_creation/create_database.py ...`
 	from create_csv import gather_candidates, run_selection, write_selected_ids_csv

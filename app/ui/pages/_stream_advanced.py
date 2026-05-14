@@ -276,8 +276,11 @@ class AdvancedSlotPanel(Panel):
         if self._slot_idx < 0 or not self._anchors_data or not self._pca_data:
             return
         anchor_xys = [p.get("anchor_xy", [0.0, 0.0]) for p in self._pca_data]
-        dists = [((x - ax)**2 + (y - ay)**2) ** 0.5 + 1e-9 for ax, ay in anchor_xys]
-        weights = [1.0 / d for d in dists]
+        # Inverse-square weighting so position dominates the blend.
+        # 1/d is too flat with 2–4 anchors: distance ratios stay close to 1
+        # and the blend collapses toward the centroid regardless of click.
+        sq_dists = [(x - ax) ** 2 + (y - ay) ** 2 + 1e-6 for ax, ay in anchor_xys]
+        weights = [1.0 / d2 for d2 in sq_dists]
         total = sum(weights)
         weights = [w / total for w in weights]
 
@@ -286,9 +289,12 @@ class AdvancedSlotPanel(Panel):
         if not valid:
             return
         n_dims = len(valid[0]["mean_z"])
-        blended_mean = [0.0] * n_dims
-        blended_std  = [1.0] * n_dims
         has_std = bool(valid[0].get("std_z"))
+        blended_mean = [0.0] * n_dims
+        # Start std at 0 so weights sum to anchor std exactly.
+        # The previous 1.0 init was an additive offset on top of the blend,
+        # which dwarfed inter-anchor std differences and flattened the response.
+        blended_std  = [0.0] * n_dims if has_std else [1.0] * n_dims
         for w, anchor in zip(weights, self._anchors_data):
             mean_z = anchor.get("mean_z", [])
             std_z  = anchor.get("std_z",  [])

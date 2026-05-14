@@ -1,11 +1,9 @@
-from src.clean import CleanUserData
-from src.export import ExportModel
-from src.generate import UseModel
-from src.phase_workflow import phase_train_workflow, generate_anchors_only
-from src.preprocess import PreprocessDataset
-from src.stream_gui import launch_gui
-from src.train import TrainModel
-from src.workflow import train_workflow
+from src.core.clean import CleanUserData
+from src.core.export import ExportModel
+from src.core.generate import UseModel
+from src.core.preprocess import PreprocessDataset
+from src.core.train import TrainModel
+from src.core.workflow import train_workflow
 
 from .menu_actions_generate import generate_stream_menu
 from .menu_actions_maintenance import maintenance_menu
@@ -19,12 +17,8 @@ def _build_menu_context():
         train_fn=TrainModel,
         export_fn=ExportModel,
         generate_fn=UseModel,
-        launch_gui_fn=launch_gui,
         workflow_fn=train_workflow,
         clean_fn=CleanUserData,
-        train_prior_fn=None,  # temporarily disabled
-        phase_train_fn=phase_train_workflow,
-        generate_anchors_fn=generate_anchors_only,
     )
 
 

@@ -34,7 +34,7 @@ class ExportWorker(QThread):
         sys.stdout = _Tee(old_out, self.log.emit)
         sys.stderr = _Tee(old_err, self.log.emit)
         try:
-            from src.export import ExportModel
+            from src.core.export import ExportModel
             out = ExportModel(
                 run_path=self._run_path or None,
                 output_path=self._destination,

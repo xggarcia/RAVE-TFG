@@ -1,5 +1,4 @@
 import os
-import traceback
 
 
 def run_generate_audio(ctx):
@@ -46,33 +45,20 @@ def run_generate_audio(ctx):
     ctx.pause()
 
 
-def run_gui_stream(ctx):
-    print("\n--- Multi-Model GUI Streaming ---")
-    print("Launching GUI window. Close it when done.\n")
-    try:
-        ctx.launch_gui_fn()
-    except Exception as e:
-        print(f"[X] Failed to open GUI: {e}")
-        traceback.print_exc()
-    ctx.pause()
-
-
 def generate_stream_menu(ctx):
     while True:
         print("\n" + "=" * 60)
         print("  Generate & Stream")
         print("=" * 60)
         print("  1) Generate audio from model")
-        print("  2) Multi-model GUI streaming")
+        print("  (Streaming GUI: launch with 'python -m app')")
         print("  8) Back")
         print("  9) Home")
         print("  0) Exit")
 
-        choice = ctx.ask_choice("\nChoose: ", {"1", "2", "8", "9", "0"})
+        choice = ctx.ask_choice("\nChoose: ", {"1", "8", "9", "0"})
         if choice == "1":
             run_generate_audio(ctx)
-        elif choice == "2":
-            run_gui_stream(ctx)
         elif choice == "8":
             return "BACK"
         elif choice == "9":

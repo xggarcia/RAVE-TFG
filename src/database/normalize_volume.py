@@ -4,8 +4,8 @@ Scans a directory tree for audio files (WAV, FLAC, OGG, MP3) and normalizes
 each one to a target RMS (dBFS). MP3/OGG files are converted to WAV in place.
 
 Usage:
-    python -m src.database_creation.normalize_volume --input-dir rainSounds
-    python -m src.database_creation.normalize_volume --input-dir rainSounds --target-db -18.0
+    python -m src.database.normalize_volume --input-dir rainSounds
+    python -m src.database.normalize_volume --input-dir rainSounds --target-db -18.0
 """
 
 from __future__ import annotations

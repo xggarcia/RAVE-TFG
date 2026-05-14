@@ -5,8 +5,8 @@ all sound IDs into one file, adding a 'query' column from the source filename.
 Duplicate IDs across files are removed by default.
 
 Usage:
-    python -m src.database_creation.merge_selected_csv
-    python -m src.database_creation.merge_selected_csv \
+    python -m src.database.merge_selected_csv
+    python -m src.database.merge_selected_csv \
         --input-dir database/database_download/user \
         --output database/database_download/user/combined_ids.csv
 """

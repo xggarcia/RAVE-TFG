@@ -156,8 +156,10 @@ class SlotPanel(Panel):
         for knob in (self._gain, self._temp, self._smooth, self._dry_wet, self._noise, self._bias):
             knob.valueChanged.connect(self._emit_params)
             knobs.addWidget(knob)
+        # PHASE knob hidden — control de fase delegado al PhasePad (mapa XY).
+        # Se mantiene el objeto self._phase para no romper _load_anchor_phases / _emit_phase / serialización.
         self._phase.valueChanged.connect(self._emit_phase)
-        knobs.addWidget(self._phase)
+        # knobs.addWidget(self._phase)
         knobs.addStretch()
         controls.addLayout(knobs)
 

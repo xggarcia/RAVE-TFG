@@ -19,14 +19,6 @@ NAV = [
         ],
     },
     {
-        "group": "TRAINING EXTRAS",
-        "items": [
-            # {"id": "prior",    "label": "Train Prior"},  # temporarily disabled
-            # {"id": "phase",    "label": "Phase-aware Training"},  # disabled for now
-            {"id": "anchors",    "label": "Phase Anchors"},
-        ],
-    },
-    {
         "group": "MAINTENANCE",
         "items": [
             {"id": "clean", "label": "Clean User Data"},

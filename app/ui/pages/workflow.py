@@ -249,7 +249,7 @@ class WorkflowPage(QWidget):
         self._run_train()
 
     def _run_train(self):
-        from src.train import _detect_gpu_flag
+        from src.core.train import _detect_gpu_flag
 
         extra = self._values["extra_configs"]
         cmd = [

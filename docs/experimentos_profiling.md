@@ -56,7 +56,7 @@ Procedimiento estándar para todos:
 
 ---
 
-### EXP-04 · Comparación de modos de rendimiento
+### EXP-04 · Comparación de modos de rendimiento --> Ya no tenemos estos modos. !!!!!
 **Objetivo:** Comparar los tres perfiles de `StreamingEngine` (Quality / Balanced / Max Stability).  
 **Configuración:** Repetir EXP-01 tres veces, una por cada performance_mode  
 **Nota:** Requiere modificar el parámetro en `_stream_builders.py` o añadir un selector en la UI.  

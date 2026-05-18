@@ -13,6 +13,7 @@ from app.ui.pages.clean import CleanPage
 from app.ui.pages.train import TrainPage
 from app.ui.pages.dataset import DatasetPage
 from app.ui.pages.workflow import WorkflowPage
+from app.ui.pages.anchors import AnchorsPage
 
 
 class MainWindow(QMainWindow):
@@ -71,6 +72,7 @@ class MainWindow(QMainWindow):
         self._register_page("train", TrainPage())
         self._register_page("dataset", DatasetPage())
         self._register_page("workflow", WorkflowPage())
+        self._register_page("anchors", AnchorsPage())
 
         self._navigate("home")
 

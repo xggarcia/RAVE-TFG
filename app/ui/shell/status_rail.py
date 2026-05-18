@@ -2,12 +2,7 @@ from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPainter
 
-LINE0 = "#333c36"
-BG1   = "#232926"
-FG2   = "#96a092"
-FG3   = "#717870"
-ACID  = "#a8e63d"
-RED   = "#e0406a"
+from app.ui.tokens import ACID, BG1, FG3, LINE0, MAG as RED, MONO
 
 
 class _Dot(QWidget):
@@ -62,14 +57,14 @@ class StatusRail(QWidget):
         self._layout.addStretch()
         hint = QLabel("Ctrl+K  command")
         hint.setStyleSheet(
-            f"color:{FG3}; font-family:'JetBrains Mono','Consolas',monospace; font-size:10px;"
+            f"color:{FG3}; {MONO} font-size:10px;"
         )
         self._layout.addWidget(hint)
 
     def _add_item(self, text: str, color: str):
         lbl = QLabel(text)
         lbl.setStyleSheet(
-            f"color:{color}; font-family:'JetBrains Mono','Consolas',monospace; "
+            f"color:{color}; {MONO} "
             f"font-size:10px; letter-spacing:1px;"
         )
         self._layout.addWidget(lbl)
@@ -89,6 +84,6 @@ class StatusRail(QWidget):
         """Update the first status item programmatically."""
         self._status_lbl.setText(text)
         self._status_lbl.setStyleSheet(
-            f"color:{color}; font-family:'JetBrains Mono','Consolas',monospace; "
+            f"color:{color}; {MONO} "
             f"font-size:10px; letter-spacing:1px;"
         )

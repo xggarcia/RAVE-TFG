@@ -51,6 +51,7 @@ class StreamWorker(QThread):
         self._pending_model_changes: list[tuple[int, str | None]] = []
 
         self._subband_intensity = 1.0  # Global subband control intensity (0.0-1.0)
+        self._dynamic_stride_enabled = True
 
         self._record_lock = threading.Lock()
         self._record_enabled = False
@@ -70,17 +71,17 @@ class StreamWorker(QThread):
                 return
             slot = self._slots[index]
             if gain is not None:
-                slot.gain.set(max(0.0, min(1.2, gain)))
+                slot.gain = max(0.0, min(1.2, gain))
             if temp is not None:
-                slot.temperature.set(max(0.1, min(3.0, temp)))
+                slot.temperature = max(0.1, min(3.0, temp))
             if smooth is not None:
-                slot.smoothing.set(max(0.0, min(0.95, smooth)))
+                slot.smoothing = max(0.0, min(0.95, smooth))
             if dry_wet is not None:
-                slot.dry_wet.set(max(0.0, min(1.0, dry_wet)))
+                slot.dry_wet = max(0.0, min(1.0, dry_wet))
             if noise is not None:
-                slot.random_intensity.set(max(0.0, min(3.0, noise)))
+                slot.random_intensity = max(0.0, min(3.0, noise))
             if bias is not None:
-                slot.latent_global_bias.set(max(-2.0, min(2.0, bias)))
+                slot.latent_global_bias = max(-2.0, min(2.0, bias))
 
     def set_master_volume(self, value: float):
         self._master_volume = max(0.0, min(1.2, value))
@@ -91,7 +92,7 @@ class StreamWorker(QThread):
         with self._lock:
             self._phase_xy = (max(0.0, min(1.0, x)), max(0.0, min(1.0, y)))
             for slot in self._slots:
-                slot.phase_value.set(self._phase_xy[0])
+                slot.phase_value = self._phase_xy[0]
 
     def set_slot_model(self, index: int, model_path: str | None):
         with self._lock:
@@ -102,12 +103,12 @@ class StreamWorker(QThread):
     def set_slot_enabled(self, index: int, enabled: bool):
         with self._lock:
             if 0 <= index < len(self._slots):
-                self._slots[index].is_active.set(enabled)
+                self._slots[index].is_active = bool(enabled)
 
     def set_slot_input_mode(self, index: int, mode: str):
         with self._lock:
             if 0 <= index < len(self._slots):
-                self._slots[index].input_mode.set(mode)
+                self._slots[index].input_mode = mode
 
     def set_slot_anchors(self, index: int, path: str):
         with self._lock:
@@ -128,7 +129,7 @@ class StreamWorker(QThread):
     def set_slot_use_prior(self, index: int, enabled: bool):
         with self._lock:
             if 0 <= index < len(self._slots):
-                self._slots[index].use_prior.set(enabled)
+                self._slots[index].use_prior = bool(enabled)
 
     def set_slot_phase_map_anchor(self, index: int, mean_z: list, std_z: list):
         with self._lock:
@@ -139,7 +140,7 @@ class StreamWorker(QThread):
     def set_slot_phase(self, index: int, value: float):
         with self._lock:
             if 0 <= index < len(self._slots):
-                self._slots[index].phase_value.set(max(0.0, min(1.0, value)))
+                self._slots[index].phase_value = max(0.0, min(1.0, value))
 
     def set_slot_subband_pattern(self, index: int, pattern: torch.Tensor | np.ndarray):
         """Set the subband pattern for a slot (num_subbands, n_timesteps)."""
@@ -160,6 +161,12 @@ class StreamWorker(QThread):
             if self._engine is not None:
                 self._engine.subband_intensity = self._subband_intensity
 
+    def set_dynamic_stride_enabled(self, enabled: bool):
+        with self._lock:
+            self._dynamic_stride_enabled = bool(enabled)
+            if self._engine is not None:
+                self._engine.dynamic_stride_enabled = self._dynamic_stride_enabled
+
     def set_slot_audio_file(self, index: int, path: str):
         with self._lock:
             if not (0 <= index < len(self._slots)):
@@ -174,7 +181,7 @@ class StreamWorker(QThread):
 
     def _get_active_slots(self):
         with self._lock:
-            return [s for s in self._slots if s.is_active.get() and s.model is not None]
+            return [s for s in self._slots if s.is_active and s.model is not None]
 
     def _schedule_ui_callback(self, cb):
         cb()
@@ -242,12 +249,12 @@ class StreamWorker(QThread):
             self._engine = StreamingEngine(self._log_msg, self._get_active_slots, self._schedule_ui_callback)
             self._engine.master_volume = self._master_volume
             self._engine.subband_intensity = self._subband_intensity
+            self._engine.dynamic_stride_enabled = self._dynamic_stride_enabled
             self._engine.on_chunk_played = self._on_played_chunk
             self._engine.configure(
                 stream=self._stream,
                 sr=self._sample_rate,
                 chunk_samples=self._block_size,
-                performance_mode="Balanced",
             )
             self.stage.emit("Allocate buffers", True, False)
             self._engine.start()
@@ -264,15 +271,15 @@ class StreamWorker(QThread):
                             audio = slot.cached_audio
                             level = float(np.sqrt(np.mean(np.square(audio))))
                             peak = float(np.max(np.abs(audio)))
-                            self.slotSpectrogram.emit(i, audio * slot.gain.get())
+                            self.slotSpectrogram.emit(i, audio * slot.gain)
                         self.slotVu.emit(i, min(1.0, level * 2.0), min(1.0, peak))
-                        if slot.input_mode.get() == "gesture" and slot.subband_pattern is not None:
+                        if slot.input_mode == "gesture" and slot.subband_pattern is not None:
                             total_steps = int(slot.subband_pattern.shape[1]) if slot.subband_pattern.ndim == 2 else 0
                             if total_steps > 0:
                                 self.slotSubbandPosition.emit(i, int(slot.subband_position) % total_steps, total_steps)
 
-                    if self._engine.metrics["write_ms"]:
-                        latency = float(self._engine.metrics["write_ms"][-1])
+                    if self._engine.last_write_ms > 0.0:
+                        latency = float(self._engine.last_write_ms)
                     else:
                         latency = (self._block_size / self._sample_rate) * 1000.0
 

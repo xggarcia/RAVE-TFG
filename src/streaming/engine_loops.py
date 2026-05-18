@@ -7,19 +7,19 @@ import torch
 
 
 def deactivate_finished_audio_slot(self, slot):
-    slot.is_active.set(False)
-    slot.status_var.set("Loaded (Audio Finished)")
+    slot.is_active = False
+    slot.status_var = "Loaded (Audio Finished)"
     self.log(f"Slot {slot.slot_id + 1}: Audio playback finished")
 
 
 def deactivate_failed_prior_slot(self, slot, reason):
-    slot.use_prior.set(False)
+    slot.use_prior = False
     slot.prior_needs_warmup = True
     slot.prior_chunks_generated = 0
-    if slot.is_active.get():
-        slot.status_var.set("Active (Prior Off)")
+    if slot.is_active:
+        slot.status_var = "Active (Prior Off)"
     else:
-        slot.status_var.set("Loaded (Prior Off)")
+        slot.status_var = "Loaded (Prior Off)"
     self.log(f"Slot {slot.slot_id + 1}: Prior generation failed, fallback to source mode - {reason}")
 
 
@@ -52,82 +52,41 @@ def coerce_prior_latent(z, target_channels, target_frames):
     return z
 
 
-def _interp_curve(curve: list, t_norm: float) -> float:
-    if not curve:
-        return 0.5
-    if t_norm <= curve[0][0]:
-        return curve[0][1]
-    for i in range(1, len(curve)):
-        x0, y0 = curve[i - 1]
-        x1, y1 = curve[i]
-        if t_norm <= x1:
-            if x1 <= x0:
-                return y1
-            a = (t_norm - x0) / (x1 - x0)
-            return y0 + a * (y1 - y0)
-    return curve[-1][1]
-
-
-def _sample_curve_at(curve: list, n: int):
-    import numpy as _np
-    if not curve or n <= 0:
-        return _np.zeros(n, dtype=_np.float32)
-    xs = _np.linspace(0.0, 1.0, n)
-    ys = [_interp_curve(curve, float(x)) for x in xs]
-    return _np.array(ys, dtype=_np.float32)
-
-
 def _project_subband_pattern_to_latent(pattern, latent_size: int, latent_length: int, step_index: int):
     """Map a painted (num_subbands, n_timesteps) pattern to a latent chunk.
 
-    Each of the ``latent_length`` output frames samples one consecutive column
-    of the pattern starting at ``step_index``. This makes the timeline 1:1: a
-    spike painted at column N produces a latent excursion exactly when the
-    playhead crosses column N.
+    Each output frame samples one consecutive column of the pattern starting
+    at ``step_index``, so a spike at column N produces a latent excursion as
+    the playhead crosses column N.
 
     Each subband row drives a contiguous slice of the latent dimensions,
-    weighted by ``row_weights`` (top band strongest, bottom band weakest).
-    A faint texture per row breaks the all-DC excursion that would otherwise
-    sound monotonous, but the painted curve is the dominant signal.
+    weighted by row position (top band strongest, bottom band weakest).
     """
-    import numpy as _np
-    import torch as _torch
-
     if pattern is None:
-        return _torch.zeros(1, latent_size, latent_length)
+        return torch.zeros(1, latent_size, latent_length)
 
     if torch.is_tensor(pattern):
-        pattern = pattern.detach().cpu().float().numpy()
+        pattern_np = pattern.detach().cpu().float().numpy()
     else:
-        pattern = _np.asarray(pattern, dtype=_np.float32)
+        pattern_np = np.asarray(pattern, dtype=np.float32)
 
-    if pattern.ndim != 2 or latent_size <= 0 or latent_length <= 0:
-        return _torch.zeros(1, max(1, latent_size), max(1, latent_length))
+    if pattern_np.ndim != 2 or latent_size <= 0 or latent_length <= 0:
+        return torch.zeros(1, max(1, latent_size), max(1, latent_length))
 
-    num_rows, num_steps = pattern.shape
+    num_rows, num_steps = pattern_np.shape
     if num_rows == 0 or num_steps == 0:
-        return _torch.zeros(1, latent_size, latent_length)
+        return torch.zeros(1, latent_size, latent_length)
 
     usable_rows = min(num_rows, latent_size)
-    # Weights match the visual band heights so what looks dominant sounds dominant.
-    row_weights = _np.array([1.0, 0.78, 0.58, 0.42, 0.30], dtype=_np.float32)
-    if usable_rows != row_weights.size:
-        row_weights = _np.linspace(1.0, 0.30, usable_rows, dtype=_np.float32)
-    else:
-        row_weights = row_weights[:usable_rows]
-    dim_slices = _np.array_split(_np.arange(latent_size), usable_rows)
+    row_weights = np.linspace(1.0, 0.30, usable_rows, dtype=np.float32)
+    dim_slices = np.array_split(np.arange(latent_size), usable_rows)
 
     step_idx = int(step_index) % num_steps
     window_indices = [(step_idx + i) % num_steps for i in range(latent_length)]
-    # step_window[row, frame] is the painted value at that (band, time) pair.
-    step_window = _np.clip(pattern[:, window_indices].astype(_np.float32), 0.0, 1.0)
-
-    # painted=0 -> 0 (band silent), painted=1 -> +2 (strong).
-    # Per-dim alternating sign below spreads the excursion through latent space
-    # so a fully-painted row produces timbral movement rather than flat DC.
+    step_window = np.clip(pattern_np[:, window_indices].astype(np.float32), 0.0, 1.0)
     excursion = step_window * 2.0
 
-    z_np = _np.zeros((latent_size, latent_length), dtype=_np.float32)
+    z_np = np.zeros((latent_size, latent_length), dtype=np.float32)
     for row_idx in range(usable_rows):
         row_excursion = excursion[row_idx, :] * float(row_weights[row_idx])
         dims = dim_slices[row_idx]
@@ -135,30 +94,7 @@ def _project_subband_pattern_to_latent(pattern, latent_size: int, latent_length:
             sign = 1.0 if ((k + row_idx) % 2 == 0) else -1.0
             z_np[dim, :] = row_excursion * sign
 
-    return _torch.from_numpy(z_np).unsqueeze(0)
-
-
-def _project_curve_to_latent(curve: list, latent_size: int, latent_length: int, seed: int = 0, intensity: float = 1.0):
-    import numpy as _np
-    import torch as _torch
-    base = _sample_curve_at(curve, latent_length)
-    # Apply intensity scaling to the base curve (makes it more/less dramatic)
-    base = base * intensity
-    # deterministic per-seed random scales (more dramatic projection)
-    rng = _np.random.RandomState(seed)
-    # Generate scales: larger variations for more noticeable effect
-    # Use a mix of base offset + variable amplitude per dimension
-    dim_centers = rng.uniform(-0.5, 0.5, size=(latent_size,)).astype(_np.float32)  # per-dim center
-    dim_scales = rng.uniform(0.8, 2.5, size=(latent_size,)).astype(_np.float32)  # per-dim amplitude (0.8-2.5x)
-    
-    # Project curve to latent space: each dimension gets a scaled + offset version of the curve
-    z_np = _np.zeros((latent_size, latent_length), dtype=_np.float32)
-    for d in range(latent_size):
-        # Curve drives both amplitude and offset
-        z_np[d, :] = (base * dim_scales[d]) + dim_centers[d]
-    
-    z = _torch.from_numpy(z_np).unsqueeze(0)  # (1, latent_size, latent_length)
-    return z
+    return torch.from_numpy(z_np).unsqueeze(0)
 
 
 def generate_mixed_chunk(self, active_slots):
@@ -171,12 +107,12 @@ def generate_mixed_chunk(self, active_slots):
             decode_start = time.perf_counter()
             prior_chunk_used = False
             with torch.no_grad():
-                if slot.input_mode.get() == "audio" and slot.encoded_latents is None:
+                if slot.input_mode == "audio" and slot.encoded_latents is None:
                     # File not loaded yet — output silence for this slot
                     slot.cached_audio = np.zeros(self.chunk_samples, dtype=np.float32)
                     continue
 
-                if slot.input_mode.get() == "audio" and slot.encoded_latents is not None:
+                if slot.input_mode == "audio" and slot.encoded_latents is not None:
                     total_latent_frames = slot.encoded_latents.shape[-1]
 
                     if slot.latent_position + slot.latent_length <= total_latent_frames:
@@ -185,7 +121,7 @@ def generate_mixed_chunk(self, active_slots):
                         slot.latent_position += slot.latent_length
                         slot.audio_sample_pos += self.chunk_samples
                     else:
-                        if slot.loop_audio.get():
+                        if slot.loop_audio:
                             slot.latent_position = 0
                             slot.audio_sample_pos = 0
                             z = slot.encoded_latents[:, :, 0:slot.latent_length]
@@ -197,7 +133,7 @@ def generate_mixed_chunk(self, active_slots):
                             continue
 
                 else:
-                    if slot.input_mode.get() == "gesture":
+                    if slot.input_mode == "gesture":
                         pattern = slot.subband_pattern
                         if pattern is None:
                             z = torch.zeros(1, slot.latent_size, slot.latent_length)
@@ -205,29 +141,29 @@ def generate_mixed_chunk(self, active_slots):
                             z = _project_subband_pattern_to_latent(
                                 pattern, slot.latent_size, slot.latent_length, slot.subband_position
                             )
-                            z = z * slot.subband_intensity.get()
+                            z = z * slot.subband_intensity
                             if pattern.shape[1] > 0:
                                 slot.subband_position = (slot.subband_position + slot.latent_length) % pattern.shape[1]
                     else:
-                        density = slot.density.get()
+                        density = slot.density
                         if slot.held_z is None or random.random() < density:
                             z = torch.randn(1, slot.latent_size, slot.latent_length)
-                            z = z * slot.random_intensity.get()
+                            z = z * slot.random_intensity
                             slot.held_z = z.clone()
                             slot.density_hold_frames = 0
                         else:
                             slot.density_hold_frames += 1
                             fade = max(0.0, 1.0 - slot.density_hold_frames * 0.12)
                             z = slot.held_z * fade
-                
-                z = z * slot.temperature.get()
+
+                z = z * slot.temperature
 
                 map_anchor = getattr(slot, "phase_map_anchor", None)
                 if map_anchor is not None:
                     from .phase_control import apply_phase_bias
                     z = apply_phase_bias(z, map_anchor["mean_z"], map_anchor["std_z"])
 
-                if slot.use_prior.get() and (slot.prior_model is not None or slot.embedded_prior_available):
+                if slot.use_prior and (slot.prior_model is not None or slot.embedded_prior_available):
                     try:
                         if slot.prior_model is not None:
                             prior_model = slot.prior_model
@@ -287,24 +223,20 @@ def generate_mixed_chunk(self, active_slots):
 
                             z = z_out
 
-                        z = z * slot.prior_temperature.get()
+                        z = z * slot.prior_temperature
                         prior_chunk_used = True
                     except Exception as prior_exc:
                         self.schedule_ui_callback(lambda s=slot, msg=str(prior_exc): deactivate_failed_prior_slot(self, s, msg))
                         # Keep source latent z for this chunk and continue streaming.
                 if slot.prev_z is not None:
-                    smooth = slot.smoothing.get()
+                    smooth = slot.smoothing
                     z = smooth * slot.prev_z + (1 - smooth) * z
 
                 slot.prev_z = z
 
-                global_bias_var = getattr(slot, "latent_global_bias", None)
-                gesture_bias_var = getattr(slot, "gesture_bias", None)
-                global_bias = float(global_bias_var.get()) if global_bias_var is not None else 0.0
-                gesture_bias = float(gesture_bias_var.get()) if gesture_bias_var is not None else 0.0
-                total_bias = global_bias + gesture_bias
-                if total_bias != 0.0:
-                    z = z + total_bias
+                global_bias = float(getattr(slot, "latent_global_bias", 0.0))
+                if global_bias != 0.0:
+                    z = z + global_bias
                 # Per-dim latent controls (bias / scale)
                 bias_list  = getattr(slot, "latent_bias",  [])
                 scale_list = getattr(slot, "latent_scale", [])
@@ -333,8 +265,8 @@ def generate_mixed_chunk(self, active_slots):
 
             audio = audio.astype(np.float32, copy=False)
             # Dry/wet blend — only meaningful in audio mode with raw audio available
-            if slot.input_mode.get() == "audio" and slot.raw_audio is not None:
-                w = float(slot.dry_wet.get())
+            if slot.input_mode == "audio" and slot.raw_audio is not None:
+                w = float(slot.dry_wet)
                 raw = slot.raw_audio
                 n = len(audio)
                 end = dry_pos + n
@@ -351,7 +283,7 @@ def generate_mixed_chunk(self, active_slots):
             slot.cached_audio = audio
             slot.last_decode_cycle = self._producer_cycle
         if slot.cached_audio is not None:
-            mixed_audio += slot.cached_audio * slot.gain.get()
+            mixed_audio += slot.cached_audio * slot.gain
 
     if len(active_slots) > 1:
         max_val = np.abs(mixed_audio).max()
@@ -359,7 +291,7 @@ def generate_mixed_chunk(self, active_slots):
             mixed_audio = mixed_audio / max_val
 
     mixed_audio = np.clip(mixed_audio, -1.0, 1.0).astype(np.float32)
-    self.metrics["decode_ms"].append(decode_total_ms)
+    self.last_decode_ms = decode_total_ms
     self._producer_cycle += 1
     return mixed_audio
 
@@ -374,6 +306,12 @@ def update_overload_state(self, producer_ms):
         self._stable_cycles += 1
         self._overload_cycles = max(0, self._overload_cycles - 1)
 
+    if not self.dynamic_stride_enabled:
+        # Keep stride at base; user disabled adaptive behavior.
+        if self.decode_stride != self.base_decode_stride:
+            self.decode_stride = self.base_decode_stride
+        return
+
     if self._overload_cycles >= 3 and self.decode_stride < self.max_decode_stride:
         self.decode_stride += 1
         self._overload_cycles = 0
@@ -386,15 +324,13 @@ def update_overload_state(self, producer_ms):
 
 
 def log_metrics_snapshot(self):
-    avg_prod = np.mean(self.metrics["producer_ms"]) if self.metrics["producer_ms"] else 0.0
-    avg_decode = np.mean(self.metrics["decode_ms"]) if self.metrics["decode_ms"] else 0.0
-    avg_write = np.mean(self.metrics["write_ms"]) if self.metrics["write_ms"] else 0.0
     budget_ms = (self.chunk_samples / self.sr) * 1000.0
     self.log(
         "[METRICS] "
         f"slots={len(self.get_active_slots())} | "
-        f"budget={budget_ms:.1f}ms | prod={avg_prod:.1f}ms | decode={avg_decode:.1f}ms | "
-        f"write={avg_write:.1f}ms | q={self.audio_queue.qsize()}/{self.queue_maxsize} | "
+        f"budget={budget_ms:.1f}ms | prod={self.last_producer_ms:.1f}ms | "
+        f"decode={self.last_decode_ms:.1f}ms | write={self.last_write_ms:.1f}ms | "
+        f"q={self.audio_queue.qsize()}/{self.queue_maxsize} | "
         f"underruns={self.metrics['underruns']} | dropped={self.metrics['dropped_chunks']}"
     )
 
@@ -412,7 +348,7 @@ def producer_loop(self):
                 chunk = (chunk * getattr(self, "master_volume", 1.0)).astype(np.float32)
 
             producer_ms = (time.perf_counter() - loop_start) * 1000.0
-            self.metrics["producer_ms"].append(producer_ms)
+            self.last_producer_ms = producer_ms
             self.metrics["generated_chunks"] += 1
             update_overload_state(self, producer_ms)
 
@@ -449,8 +385,7 @@ def consumer_loop(self):
 
             write_start = time.perf_counter()
             self.stream.write(chunk)
-            write_ms = (time.perf_counter() - write_start) * 1000.0
-            self.metrics["write_ms"].append(write_ms)
+            self.last_write_ms = (time.perf_counter() - write_start) * 1000.0
             self.metrics["played_chunks"] += 1
             self.set_last_output_chunk(chunk)
 

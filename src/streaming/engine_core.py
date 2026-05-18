@@ -1,8 +1,15 @@
-import collections
 import queue
 import threading
 
 from .engine_loops import consumer_loop, producer_loop
+
+
+# Engine defaults. These used to be selected by a "performance_mode" preset
+# (Quality / Balanced / Max Stability). Now only one configuration exists and
+# dynamic stride is what adapts to load at runtime — toggleable from the UI.
+DEFAULT_QUEUE_SIZE = 6
+DEFAULT_BASE_STRIDE = 1
+DEFAULT_MAX_STRIDE = 4
 
 
 class StreamingEngine:
@@ -24,10 +31,12 @@ class StreamingEngine:
         self.audio_queue = None
 
         self.master_volume = 1.0
-        self.base_decode_stride = 1
-        self.max_decode_stride = 2
-        self.decode_stride = 1
-        self.queue_maxsize = 6
+        self.base_decode_stride = DEFAULT_BASE_STRIDE
+        self.max_decode_stride = DEFAULT_MAX_STRIDE
+        self.decode_stride = DEFAULT_BASE_STRIDE
+        self.queue_maxsize = DEFAULT_QUEUE_SIZE
+        self.dynamic_stride_enabled = True
+
         self._producer_cycle = 0
         self._overload_cycles = 0
         self._stable_cycles = 0
@@ -35,33 +44,27 @@ class StreamingEngine:
         self._last_chunk_lock = threading.Lock()
         self.on_chunk_played = None
 
+        # Aggregate counters and the most recent per-stage timing.
+        # We used to keep 120-sample deques per stage but the only place that
+        # consumed them showed the most recent value anyway.
         self.metrics = {
             "generated_chunks": 0,
             "played_chunks": 0,
             "underruns": 0,
             "dropped_chunks": 0,
-            "producer_ms": collections.deque(maxlen=120),
-            "decode_ms": collections.deque(maxlen=120),
-            "write_ms": collections.deque(maxlen=120),
         }
+        self.last_producer_ms = 0.0
+        self.last_decode_ms = 0.0
+        self.last_write_ms = 0.0
 
-    @staticmethod
-    def profile_for_mode(mode):
-        if mode == "Quality":
-            return {"queue_size": 4, "base_stride": 1, "max_stride": 2}
-        if mode == "Max Stability":
-            return {"queue_size": 10, "base_stride": 2, "max_stride": 6}
-        return {"queue_size": 6, "base_stride": 1, "max_stride": 4}
-
-    def configure(self, stream, sr, chunk_samples, performance_mode):
+    def configure(self, stream, sr, chunk_samples):
         self.stream = stream
         self.sr = sr
         self.chunk_samples = chunk_samples
 
-        profile = self.profile_for_mode(performance_mode)
-        self.queue_maxsize = profile["queue_size"]
-        self.base_decode_stride = profile["base_stride"]
-        self.max_decode_stride = profile["max_stride"]
+        self.queue_maxsize = DEFAULT_QUEUE_SIZE
+        self.base_decode_stride = DEFAULT_BASE_STRIDE
+        self.max_decode_stride = DEFAULT_MAX_STRIDE
         self.decode_stride = self.base_decode_stride
 
         self.audio_queue = queue.Queue(maxsize=self.queue_maxsize)
@@ -73,9 +76,9 @@ class StreamingEngine:
         self.metrics["played_chunks"] = 0
         self.metrics["underruns"] = 0
         self.metrics["dropped_chunks"] = 0
-        self.metrics["producer_ms"].clear()
-        self.metrics["decode_ms"].clear()
-        self.metrics["write_ms"].clear()
+        self.last_producer_ms = 0.0
+        self.last_decode_ms = 0.0
+        self.last_write_ms = 0.0
         self._producer_cycle = 0
         self._overload_cycles = 0
         self._stable_cycles = 0

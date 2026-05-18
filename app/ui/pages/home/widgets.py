@@ -10,23 +10,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-BG0   = "#1e2320"
-BG1   = "#232926"
-BG2   = "#28302b"
-BG3   = "#2f3832"
-BG4   = "#37413a"
-FG0   = "#f0f4ee"
-FG1   = "#c6cdc3"
-FG2   = "#96a092"
-FG3   = "#717870"
-LINE0 = "#333c36"
-LINE1 = "#3f4b42"
-LINE2 = "#4e5c51"
-ACID  = "#a8e63d"
-AMBER = "#e8c040"
-MAG   = "#e0406a"
-BLUE  = "#5090d8"
-MONO  = "font-family:'JetBrains Mono','Consolas',monospace;"
+from app.ui.tokens import (
+    ACID, AMBER, BG2, BG3, BLUE, FG0, FG3, LINE0, LINE2, MAG, MONO,
+)
 
 SECTIONS = [
     {

@@ -4,11 +4,7 @@ from PySide6.QtWidgets import QWidget
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QPainter, QColor, QPen
 
-ACID  = "#a8e63d"
-AMBER = "#e8c040"
-MAG   = "#e0406a"
-FG3   = "#717870"
-BG0   = "#1e2320"
+from app.ui.tokens import ACID, AMBER, FG3, MAG
 
 
 class _AudioLoader(QThread):

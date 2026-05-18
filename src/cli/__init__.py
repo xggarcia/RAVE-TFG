@@ -1,3 +1,3 @@
-"""CLI package for interactive menu and command routing."""
+"""Argparse-based CLI for non-interactive RAVE-TFG invocations."""
 
 __all__ = []

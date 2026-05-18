@@ -1,7 +1,7 @@
 """Normalize audio files to a consistent RMS volume level.
 
-Scans a directory tree for audio files (WAV, FLAC, OGG, MP3) and normalizes
-each one to a target RMS (dBFS). MP3/OGG files are converted to WAV in place.
+Scans a directory tree for audio files (WAV, FLAC, OGG, AIFF) and normalizes
+each one to a target RMS (dBFS). Files are loaded and rewritten as WAV PCM_16.
 
 Usage:
     python -m src.database.normalize_volume --input-dir rainSounds
@@ -13,29 +13,16 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import librosa
 import numpy as np
 import soundfile as sf
 
-AUDIO_EXTENSIONS = {".wav", ".flac", ".ogg", ".mp3", ".aiff", ".aif"}
+AUDIO_EXTENSIONS = {".wav", ".flac", ".ogg", ".aiff", ".aif"}
 
 
 def _load_audio(path: Path) -> tuple[np.ndarray, int]:
-    """Load audio as float32 numpy array shape (samples, channels) and sample rate.
-
-    Uses soundfile for lossless formats (WAV/FLAC/OGG/AIFF) and librosa for MP3.
-    """
-    try:
-        data, sr = sf.read(str(path), dtype="float32", always_2d=True)
-        return data, int(sr)
-    except Exception:
-        # Fallback for MP3 and other formats soundfile cannot decode.
-        y, sr = librosa.load(str(path), sr=None, mono=False)
-        if y.ndim == 1:
-            data = y[:, np.newaxis]          # (samples,) → (samples, 1)
-        else:
-            data = y.T                       # (channels, samples) → (samples, channels)
-        return data.astype(np.float32), int(sr)
+    """Load audio as float32 numpy array shape (samples, channels) and sample rate."""
+    data, sr = sf.read(str(path), dtype="float32", always_2d=True)
+    return data, int(sr)
 
 
 def _rms_db(data: np.ndarray) -> float:

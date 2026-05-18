@@ -9,14 +9,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.ui.pages._train_live import LivePanel
-from app.ui.pages._workflow_config import (
+from app.ui.pages.train.live import LivePanel
+from app.ui.pages.workflow.config import (
     EXTRA_CONFIGS,
     DEFAULT_ON,
     _ConfigChip,
     build_config_panel,
 )
-from app.ui.pages._workflow_widgets import StageRow, StageState
+from app.ui.pages.workflow.widgets import StageRow, StageState
 from app.ui.widgets.form import (
     ACID,
     AMBER,

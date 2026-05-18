@@ -1,30 +1,15 @@
 """Shared form primitives: Field, FileInput, RadioGroup, Toggle, PageHeader, Panel."""
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFileDialog, QButtonGroup, QRadioButton, QSizePolicy, QFrame,
+    QFileDialog, QButtonGroup, QCheckBox, QRadioButton, QSizePolicy,
 )
-from PySide6.QtCore import Qt, Signal, Property
-from PySide6.QtGui import QColor, QPainter, QPen, QFont
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QPainter, QPen
 
-BG0   = "#1e2320"
-BG1   = "#232926"
-BG2   = "#28302b"
-BG3   = "#2f3832"
-BG4   = "#37413a"
-FG0   = "#f0f4ee"
-FG1   = "#c6cdc3"
-FG2   = "#96a092"
-FG3   = "#717870"
-LINE0 = "#333c36"
-LINE1 = "#3f4b42"
-LINE2 = "#4e5c51"
-ACID  = "#a8e63d"
-ACIDDIM = "#6aad1e"
-ACIDBG  = "#384d28"
-AMBER = "#e8c040"
-MAG   = "#e0406a"
-BLUE  = "#5090d8"
-MONO  = "font-family:'JetBrains Mono','Consolas',monospace;"
+from app.ui.tokens import (
+    ACID, ACIDBG, ACIDDIM, AMBER, BG0, BG1, BG2, BG3, BG4,
+    BLUE, FG0, FG1, FG2, FG3, LINE0, LINE1, LINE2, MAG, MONO,
+)
 
 
 def _lbl(text, size=12, color=FG0, bold=False, mono=False, spacing=None, wrap=False):
@@ -232,70 +217,67 @@ class FileInput(QWidget):
 
 # ── Toggle ───────────────────────────────────────────────────────────────────
 
-class Toggle(QWidget):
-    toggled = Signal(bool)
+class Toggle(QCheckBox):
+    """Native QCheckBox styled as a small toggle.
+
+    Exposes `is_on` for backward compatibility with the previous custom widget.
+    Default Qt checkbox look — no iOS-switch QPainter.
+    """
 
     def __init__(self, on: bool = False, parent=None):
         super().__init__(parent)
-        self._on = on
-        self.setFixedSize(40, 22)
-        self.setCursor(Qt.PointingHandCursor)
-
-    def mousePressEvent(self, event):
-        self._on = not self._on
-        self.update()
-        self.toggled.emit(self._on)
+        self.setChecked(on)
+        self.setStyleSheet(
+            f"QCheckBox {{ color:{FG1}; font-size:12px; background:transparent; spacing:6px; }}"
+            f"QCheckBox::indicator {{ width:14px; height:14px; border-radius:3px; }}"
+            f"QCheckBox::indicator:checked {{ background:{ACID}; border:1px solid {ACID}; }}"
+            f"QCheckBox::indicator:unchecked {{ background:{BG1}; border:1px solid {LINE1}; }}"
+        )
 
     @property
     def is_on(self) -> bool:
-        return self._on
-
-    def paintEvent(self, event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        track_color = QColor(ACID) if self._on else QColor(BG3)
-        p.setPen(Qt.NoPen)
-        p.setBrush(track_color)
-        p.drawRoundedRect(0, 4, 40, 14, 7, 7)
-        p.setBrush(QColor(FG0))
-        x = 22 if self._on else 2
-        p.drawEllipse(x, 1, 20, 20)
-        p.end()
+        return self.isChecked()
 
 
 # ── RadioGroup ───────────────────────────────────────────────────────────────
+
+_RADIO_QSS = (
+    "QRadioButton {{ color:{fg1}; font-size:12px; background:transparent; }}"
+    "QRadioButton::indicator {{ width:14px; height:14px; border-radius:7px; }}"
+    "QRadioButton::indicator:checked {{ background:{acid}; border:2px solid {acid}; }}"
+    "QRadioButton::indicator:unchecked {{ background:{bg1}; border:1px solid {line1}; }}"
+)
+
 
 class RadioGroup(QWidget):
     value_changed = Signal(str)
 
     def __init__(self, options: list[dict], value: str = "", parent=None):
         super().__init__(parent)
-        self.setStyleSheet("background:transparent;")
+        self.setStyleSheet(_RADIO_QSS.format(fg1=FG1, acid=ACID, bg1=BG1, line1=LINE1))
         self._group = QButtonGroup(self)
+        self._values: dict[QRadioButton, str] = {}
+
         hl = QHBoxLayout(self)
         hl.setContentsMargins(0, 0, 0, 0)
         hl.setSpacing(6)
-
         for opt in options:
             btn = QRadioButton(opt["label"])
-            btn.setStyleSheet(
-                f"QRadioButton {{ color:{FG1}; font-size:12px; background:transparent; }}"
-                f"QRadioButton::indicator {{ width:14px; height:14px; }}"
-                f"QRadioButton::indicator:checked {{ background:{ACID}; border:2px solid {ACID}; border-radius:7px; }}"
-                f"QRadioButton::indicator:unchecked {{ background:{BG1}; border:1px solid {LINE1}; border-radius:7px; }}"
-            )
+            self._values[btn] = opt["value"]
             if opt["value"] == value:
                 btn.setChecked(True)
-            btn.toggled.connect(lambda checked, v=opt["value"]: self.value_changed.emit(v) if checked else None)
+            btn.toggled.connect(
+                lambda checked, v=opt["value"]: checked and self.value_changed.emit(v)
+            )
             self._group.addButton(btn)
             hl.addWidget(btn)
         hl.addStretch()
 
     @property
     def value(self) -> str:
-        for btn in self._group.buttons():
+        for btn, v in self._values.items():
             if btn.isChecked():
-                return btn.text()
+                return v
         return ""
 
 

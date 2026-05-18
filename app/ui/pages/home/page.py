@@ -10,18 +10,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.ui.pages._home_widgets import (
-    ACID,
-    BG0,
-    BG1,
-    BG2,
-    FG1,
-    FG2,
-    LINE0,
-    SECTIONS,
-    _SectionGroup,
-    _lbl,
-)
+from app.ui.tokens import ACID, BG0, BG1, LINE0
+from app.ui.pages.home.widgets import SECTIONS, _SectionGroup, _lbl
 
 
 class HomePage(QWidget):

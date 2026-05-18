@@ -1,8 +1,20 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea, QSizePolicy
-from PySide6.QtCore import Qt, Signal, QSize
-from PySide6.QtGui import QPainter, QColor, QPen, QFont, QFontDatabase
+"""Sidebar with grouped navigation. Uses native QPushButton (checkable) for items."""
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
-# Nav structure matching shell.jsx NAV
+from app.ui.tokens import ACID, BG1, BG2, BG3, BG4, FG0, FG1, FG3, LINE0, LINE1, MONO
+
 NAV = [
     {
         "group": "GENERATE & STREAM",
@@ -14,8 +26,8 @@ NAV = [
     {
         "group": "CORE WORKFLOW",
         "items": [
-            {"id": "dataset",    "label": "Dataset Creation"},
-            {"id": "train",      "label": "Train Model"},
+            {"id": "dataset", "label": "Dataset Creation"},
+            {"id": "train",   "label": "Train Model"},
         ],
     },
     {
@@ -26,68 +38,26 @@ NAV = [
     },
 ]
 
-BG1   = "#232926"
-BG2   = "#28302b"
-BG3   = "#2f3832"
-BG4   = "#37413a"
-FG0   = "#f0f4ee"
-FG1   = "#c6cdc3"
-FG2   = "#96a092"
-FG3   = "#717870"
-LINE0 = "#333c36"
-LINE1 = "#3f4b42"
-ACID  = "#a8e63d"
-
-
-class NavItem(QWidget):
-    clicked = Signal(str)
-
-    def __init__(self, page_id: str, label: str, parent=None):
-        super().__init__(parent)
-        self._id = page_id
-        self._label = label
-        self._active = False
-        self.setCursor(Qt.PointingHandCursor)
-        self.setFixedHeight(32)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
-    def set_active(self, active: bool):
-        self._active = active
-        self.update()
-
-    def mousePressEvent(self, event):
-        self.clicked.emit(self._id)
-
-    def paintEvent(self, event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        r = self.rect()
-
-        if self._active:
-            p.setPen(QPen(QColor(LINE1), 1))
-            p.setBrush(QColor(BG3))
-            p.drawRoundedRect(r.adjusted(0, 0, -1, -1), 4, 4)
-            # acid left bar
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor(ACID))
-            p.drawRoundedRect(-1, 6, 3, r.height() - 12, 2, 2)
-        elif self.underMouse():
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor(BG4))
-            p.drawRoundedRect(r.adjusted(0, 0, -1, -1), 4, 4)
-
-        font = self.font()
-        font.setPointSizeF(9.5)
-        p.setFont(font)
-        p.setPen(QColor(FG0 if self._active else FG1))
-        p.drawText(r.adjusted(12, 0, -8, 0), Qt.AlignVCenter | Qt.AlignLeft, self._label)
-        p.end()
-
-    def enterEvent(self, event):
-        self.update()
-
-    def leaveEvent(self, event):
-        self.update()
+_NAV_BTN_QSS = f"""
+QPushButton {{
+    color: {FG1};
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    text-align: left;
+    padding: 6px 10px;
+    font-size: 12px;
+}}
+QPushButton:hover {{
+    background: {BG4};
+}}
+QPushButton:checked {{
+    color: {FG0};
+    background: {BG3};
+    border: 1px solid {LINE1};
+    border-left: 3px solid {ACID};
+}}
+"""
 
 
 class Sidebar(QWidget):
@@ -95,8 +65,7 @@ class Sidebar(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._active = "home"
-        self._items: dict[str, NavItem] = {}
+        self._items: dict[str, QPushButton] = {}
         self.setFixedWidth(220)
         self._build()
 
@@ -113,23 +82,22 @@ class Sidebar(QWidget):
         # Brand strip
         brand = QWidget()
         brand.setFixedHeight(52)
-        brand.setAutoFillBackground(True)
         bl = QHBoxLayout(brand)
         bl.setContentsMargins(14, 10, 14, 10)
         bl.setSpacing(10)
 
-        logo = _LogoBox()
+        logo = QLabel("◊")
+        logo.setFixedSize(24, 24)
+        logo.setAlignment(Qt.AlignCenter)
+        logo.setStyleSheet(
+            f"background:{ACID}; color:{BG1}; border-radius:4px; "
+            f"font-size:14px; font-weight:700;"
+        )
         bl.addWidget(logo)
 
-        text_col = QVBoxLayout()
-        text_col.setSpacing(1)
         name_lbl = QLabel("RAVE-TFG")
-        name_lbl.setStyleSheet(f"color:{FG0}; font-family:'JetBrains Mono','Consolas',monospace; font-size:11px; font-weight:600; letter-spacing:2px;")
-        ver_lbl = QLabel("v0.4.2 · local")
-        ver_lbl.setStyleSheet(f"color:{FG3}; font-family:'JetBrains Mono','Consolas',monospace; font-size:9px; letter-spacing:1px;")
-        text_col.addWidget(name_lbl)
-        text_col.addWidget(ver_lbl)
-        bl.addLayout(text_col)
+        name_lbl.setStyleSheet(f"color:{FG0}; {MONO} font-size:11px; font-weight:600; letter-spacing:2px;")
+        bl.addWidget(name_lbl)
         bl.addStretch()
         root.addWidget(brand)
 
@@ -138,89 +106,61 @@ class Sidebar(QWidget):
         sep.setStyleSheet(f"color:{LINE0};")
         root.addWidget(sep)
 
-        # Scroll area for nav
+        # Nav buttons (checkable, grouped so only one is checked at a time)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setStyleSheet("QScrollArea { background: transparent; }")
 
-        nav_container = QWidget()
-        nav_container.setStyleSheet("background: transparent;")
-        nav_layout = QVBoxLayout(nav_container)
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        nav_layout = QVBoxLayout(container)
         nav_layout.setContentsMargins(8, 8, 8, 8)
-        nav_layout.setSpacing(0)
+        nav_layout.setSpacing(2)
+
+        self._group = QButtonGroup(self)
+        self._group.setExclusive(True)
 
         for group in NAV:
             grp_lbl = QLabel(group["group"])
-            grp_lbl.setStyleSheet(f"color:{FG3}; font-family:'JetBrains Mono','Consolas',monospace; font-size:9px; letter-spacing:2px; text-transform:uppercase; padding: 6px 8px 4px;")
+            grp_lbl.setStyleSheet(
+                f"color:{FG3}; {MONO} font-size:9px; letter-spacing:2px; padding: 6px 8px 4px;"
+            )
             nav_layout.addWidget(grp_lbl)
 
             for item in group["items"]:
-                nav_item = NavItem(item["id"], item["label"])
-                nav_item.clicked.connect(self._on_item_clicked)
-                self._items[item["id"]] = nav_item
-                nav_layout.addWidget(nav_item)
+                btn = QPushButton(item["label"])
+                btn.setCheckable(True)
+                btn.setCursor(Qt.PointingHandCursor)
+                btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+                btn.setFixedHeight(32)
+                btn.setStyleSheet(_NAV_BTN_QSS)
+                btn.clicked.connect(lambda _checked, pid=item["id"]: self._on_clicked(pid))
+                self._group.addButton(btn)
+                self._items[item["id"]] = btn
+                nav_layout.addWidget(btn)
 
             nav_layout.addSpacing(8)
 
         nav_layout.addStretch()
-        scroll.setWidget(nav_container)
+        scroll.setWidget(container)
         root.addWidget(scroll, 1)
 
-        # GPU card
-        gpu_card = _GpuCard()
-        root.addWidget(gpu_card)
+        root.addWidget(_GpuCard())
 
-        # Right border
         self.setStyleSheet(f"Sidebar {{ border-right: 1px solid {LINE0}; }}")
 
-    def _on_item_clicked(self, page_id: str):
+    def _on_clicked(self, page_id: str):
         self.set_active(page_id)
         self.navigate.emit(page_id)
 
     def set_active(self, page_id: str):
-        if self._active in self._items:
-            self._items[self._active].set_active(False)
-        self._active = page_id
         if page_id in self._items:
-            self._items[page_id].set_active(True)
+            self._items[page_id].setChecked(True)
 
 
-class _LogoBox(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFixedSize(24, 24)
-
-    def paintEvent(self, event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        p.setBrush(QColor(ACID))
-        p.setPen(Qt.NoPen)
-        p.drawRoundedRect(0, 0, 24, 24, 4, 4)
-        # waveform path
-        pen = QPen(QColor("#1e2320"), 1.5)
-        pen.setCapStyle(Qt.RoundCap)
-        pen.setJoinStyle(Qt.RoundJoin)
-        p.setPen(pen)
-        p.setBrush(Qt.NoBrush)
-        from PySide6.QtGui import QPainterPath
-        path = QPainterPath()
-        path.moveTo(2, 12)
-        path.lineTo(4, 12)
-        path.lineTo(6, 7)
-        path.lineTo(8, 16)
-        path.lineTo(10, 9)
-        path.lineTo(12, 14)
-        path.lineTo(14, 12)
-        path.lineTo(16, 15)
-        path.lineTo(18, 12)
-        path.lineTo(20, 12)
-        p.drawPath(path)
-        p.end()
-
-
-def _get_gpu_info():
+def _get_gpu_info() -> str:
     try:
         import torch
         if torch.cuda.is_available():
@@ -236,20 +176,11 @@ class _GpuCard(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(42)
-        self.setContentsMargins(8, 0, 8, 8)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(4)
-
         self.setStyleSheet(f"_GpuCard {{ background:{BG2}; border:1px solid {LINE0}; border-radius:4px; margin:8px; }}")
 
-        top = QHBoxLayout()
-        top.setSpacing(6)
-        gpu_info = _get_gpu_info()
-        gpu_lbl = QLabel(gpu_info)
-        gpu_lbl.setStyleSheet(f"color:{FG1}; font-family:'JetBrains Mono','Consolas',monospace; font-size:10px; letter-spacing:1px;")
-        top.addWidget(gpu_lbl)
-        top.addStretch()
-        layout.addLayout(top)
-
-
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(14, 8, 14, 8)
+        gpu_lbl = QLabel(_get_gpu_info())
+        gpu_lbl.setStyleSheet(f"color:{FG1}; {MONO} font-size:10px; letter-spacing:1px;")
+        layout.addWidget(gpu_lbl)
+        layout.addStretch()

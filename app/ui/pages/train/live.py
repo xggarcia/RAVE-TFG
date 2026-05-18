@@ -26,7 +26,7 @@ from app.ui.widgets.form import (
     _lbl,
     section_title,
 )
-from app.ui.pages._train_monitor_widgets import ChartPanel, ErrorPanel
+from app.ui.pages.train.monitor import ChartPanel, ErrorPanel
 
 _STAT_KEYS = [
     ("Step",     "—", "#f0f4ee"),

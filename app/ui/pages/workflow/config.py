@@ -33,7 +33,7 @@ from app.ui.widgets.form import (
 )
 
 if TYPE_CHECKING:
-    from app.ui.pages.workflow import WorkflowPage
+    from app.ui.pages.workflow.page import WorkflowPage
 
 EXTRA_CONFIGS = [
     ("noise",    "noise injection"),

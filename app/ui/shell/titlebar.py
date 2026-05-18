@@ -2,11 +2,7 @@ from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel
 from PySide6.QtCore import Qt, QPoint
 from PySide6.QtGui import QPainter, QColor
 
-BG2   = "#28302b"
-BG3   = "#2f3832"
-FG1   = "#c6cdc3"
-LINE0 = "#333c36"
-ACID  = "#a8e63d"
+from app.ui.tokens import ACID, BG2, BG3, LINE0, MONO
 
 
 class _TrafficDot(QWidget):
@@ -55,7 +51,7 @@ class TitleBar(QWidget):
         title_lbl = QLabel("RAVE-TFG")
         title_lbl.setAlignment(Qt.AlignCenter)
         title_lbl.setStyleSheet(
-            f"color:{ACID}; font-family:'JetBrains Mono','Consolas',monospace; "
+            f"color:{ACID}; {MONO} "
             f"font-size:12px; font-weight:600; letter-spacing:3px;"
         )
         layout.addWidget(title_lbl, 1)

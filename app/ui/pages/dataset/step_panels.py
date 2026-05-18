@@ -29,7 +29,7 @@ from app.ui.widgets.form import (
 )
 from app.ui.widgets.progress_panel import ProgressPanel
 from app.workers.dataset_worker import DatasetWorker
-from app.ui.pages._dataset_details import _DetailHeader, _input
+from app.ui.pages.dataset.details import _DetailHeader, _input
 
 
 # ── First download ────────────────────────────────────────────────────────────

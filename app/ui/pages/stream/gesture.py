@@ -1,45 +1,9 @@
-"""Gesture draw widget and gesture-engine helpers for the streaming page."""
-import time
-
+"""Gesture draw widget for the streaming page."""
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen, QPainterPath
 from PySide6.QtWidgets import QWidget
 
 from app.ui.widgets.form import ACID, BG1, LINE0
-
-
-def _interp_curve(curve: list[tuple[float, float]], t_norm: float) -> float:
-    if not curve:
-        return 0.5
-    if t_norm <= curve[0][0]:
-        return curve[0][1]
-    for i in range(1, len(curve)):
-        x0, y0 = curve[i - 1]
-        x1, y1 = curve[i]
-        if t_norm <= x1:
-            if x1 <= x0:
-                return y1
-            a = (t_norm - x0) / (x1 - x0)
-            return y0 + a * (y1 - y0)
-    return curve[-1][1]
-
-
-def apply_gesture_control(lock, enabled: bool, curve: list, loop_seconds: float,
-                           start_time: float, slots) -> None:
-    if not enabled:
-        return
-
-    elapsed = max(0.0, time.perf_counter() - start_time)
-    t_norm = (elapsed % loop_seconds) / loop_seconds
-    y = max(0.0, min(1.0, _interp_curve(curve, t_norm)))
-
-    gesture_temp = 0.7 + 1.1 * y
-    gesture_bias = (y - 0.5) * 0.9
-
-    with lock:
-        for slot in slots:
-            slot.gesture_temp.set(gesture_temp)
-            slot.gesture_bias.set(gesture_bias)
 
 
 class _GestureDrawWidget(QWidget):

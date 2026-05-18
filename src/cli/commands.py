@@ -43,6 +43,19 @@ def build_parser():
 
     subparsers.add_parser("clean", help="Delete all user data (preprocessed, checkpoints, exports, outputs)")
 
+    database_parser = subparsers.add_parser("database", help="Run the Freesound dataset creation workflow")
+    database_parser.add_argument("csv", help="Input CSV with Freesound query jobs")
+    database_parser.add_argument(
+        "--selected-csv-dir",
+        default="database/database_download/user",
+        help="Directory where selected IDs CSV files are saved",
+    )
+    database_parser.add_argument(
+        "--final-root",
+        default="input_data/user_data",
+        help="Root folder where final audio is downloaded per queryText",
+    )
+
     return parser
 
 
@@ -105,3 +118,15 @@ def run_command(args):
         from src.core.clean import CleanUserData
 
         CleanUserData()
+
+    elif args.command == "database":
+        from pathlib import Path
+        from src.database.create_database import run_create_database_workflow
+        from src.database.download_csv import _load_dotenv
+
+        _load_dotenv()
+        run_create_database_workflow(
+            jobs_csv_path=Path(args.csv),
+            selected_csv_dir=Path(args.selected_csv_dir),
+            final_root=Path(args.final_root),
+        )

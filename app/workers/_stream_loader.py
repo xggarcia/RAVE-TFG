@@ -110,8 +110,8 @@ def _detect_model_latent_size(model, model_path: str, block_size: int) -> int:
 def _clear_slot_model(slot: _SlotState):
     slot.model = None
     slot.model_path = None
-    slot.is_active.set(False)
-    slot.status_var.set("Inactive")
+    slot.is_active = False
+    slot.status_var = "Inactive"
     slot.cached_audio = None
     slot.prev_z = None
     slot.prior_model = None
@@ -153,7 +153,7 @@ def load_slot_anchors(slot: _SlotState, warn_fn, path: str):
         warn_fn(f"Slot {slot.slot_id + 1}: failed to load anchors — {exc}")
         return
     slot.phase_anchors = anchors
-    slot.phase_enabled.set(len(anchors) >= 2)
+    slot.phase_enabled = len(anchors) >= 2
 
 
 def load_slot_phase_map_anchor(slot: _SlotState, mean_z: list, std_z: list):
@@ -258,8 +258,8 @@ def _load_slot_model(worker: "StreamWorker", index: int, model_path: str):
 
     slot.prev_z = None
     slot.cached_audio = None
-    slot.is_active.set(True)
-    slot.status_var.set("Active")
+    slot.is_active = True
+    slot.status_var = "Active"
 
     worker.slotInfo.emit(index, latent_size)
 

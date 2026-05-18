@@ -50,7 +50,7 @@ These rules apply whenever writing or editing TFG document sections.
 
 ## Context
 
-RAVE-TFG is a Python tool for training and using RAVE (Realtime Audio Variational autoEncoder) neural audio models. It currently runs as an interactive CLI menu. We are converting it into a **PySide6 desktop app** while keeping the exact same Python backend.
+RAVE-TFG is a Python tool for training and using RAVE (Realtime Audio Variational autoEncoder) neural audio models. The primary UI is a **PySide6 desktop app**. An argparse CLI in `src/cli/commands.py` remains for scripting one-off invocations (preprocess / train / export / workflow / generate / clean / database). The legacy interactive CLI menu has been removed — do not reintroduce it.
 
 ## Single source of truth for UI/UX
 
@@ -97,7 +97,7 @@ Files worth reading in the mock:
 2. **Keep the CLI working** throughout the port. The desktop app should share backend modules with the CLI, not replace them.
 3. **UI thread stays responsive.** Any of: disk I/O over ~50 ms, model loading, training, preprocessing, audio inference — runs off-thread. Stream status via signals.
 4. **Match the mock.** Field labels, placements, defaults, helper text, hint copy, state variants, color of running vs done vs error — all come from the mock.
-5. **Custom widgets with QPainter first, external libs second.** Knob, VU, Waveform, PhasePad are `QWidget` subclasses drawing in `paintEvent`. Ask before adding a UI dependency beyond PySide6 + pyqtgraph.
+5. **Native Qt and pyqtgraph first.** Prefer `QDial`, `QProgressBar`, `pyqtgraph.PlotWidget`/`ImageView`, etc., over custom QPainter widgets. Only fall back to a custom `QWidget` subclass with `paintEvent` when there is no native equivalent (e.g. PhasePad, SubbandDrawWidget). Ask before adding a UI dependency beyond PySide6 + pyqtgraph.
 6. **Ask before each phase.** Before starting a phase, paste the relevant mock screenshot and enumerate the fields/states/widgets you will implement. Wait for approval.
 
 ## Phase plan
@@ -163,9 +163,9 @@ rave-tfg/
 ├── CLAUDE.md
 ├── design-mock/           ← HTML prototype (reference only, do not modify)
 ├── pyproject.toml
-├── main.py                ← CLI entry (interactive menu + argparse subcommands)
+├── main.py                ← entry: no args → PySide6 app; with args → argparse CLI
 ├── src/                   ← backend (importable by CLI and GUI)
-│   ├── cli/               ← interactive menu + argparse subcommands
+│   ├── cli/               ← argparse subcommands (commands.py)
 │   ├── core/              ← preprocess, train, export, generate, workflow, clean
 │   ├── streaming/         ← realtime inference engine (no UI)
 │   └── database/          ← Freesound ingest + audio normalize/convert

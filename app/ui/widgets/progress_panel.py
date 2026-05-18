@@ -1,24 +1,14 @@
 """ProgressPanel — log stream + progress bar shown while a job runs."""
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QPlainTextEdit, QProgressBar, QSizePolicy,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QPlainTextEdit, QProgressBar,
 )
 from PySide6.QtCore import Qt, Slot
-from PySide6.QtGui import QColor, QPainter, QPen, QTextCharFormat, QColor as QC
+from PySide6.QtGui import QColor, QPainter
 
-BG0   = "#1e2320"
-BG2   = "#28302b"
-BG3   = "#2f3832"
-FG0   = "#f0f4ee"
-FG1   = "#c6cdc3"
-FG2   = "#96a092"
-FG3   = "#717870"
-LINE0 = "#333c36"
-LINE1 = "#3f4b42"
-ACID  = "#a8e63d"
-AMBER = "#e8c040"
-MAG   = "#e0406a"
-MONO  = "font-family:'JetBrains Mono','Consolas',monospace;"
+from app.ui.tokens import (
+    ACID, AMBER, BG0, BG2, BG3, FG0, FG1, FG2, LINE0, MAG, MONO,
+)
 
 
 class ProgressPanel(QWidget):

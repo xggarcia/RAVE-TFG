@@ -34,68 +34,57 @@ def _detect_model_sr(model, model_path: str) -> int | None:
     return None
 
 
-class _Var:
-    def __init__(self, value):
-        self._value = value
-
-    def get(self):
-        return self._value
-
-    def set(self, value):
-        self._value = value
-
-
 class _SlotState:
     def __init__(self, slot_id: int):
         self.slot_id = slot_id
         self.model = None
         self.model_path = None
         self.model_sr = None
-        self.is_active = _Var(False)
-        self.status_var = _Var("Inactive")
+        self.is_active = False
+        self.status_var = "Inactive"
 
         self.latent_size = 16
         self.latent_length = 1
         self.output_length = 1
         self.prev_z = None
 
-        self.gain = _Var(0.6)
-        self.temperature = _Var(0.6)
-        self.smoothing = _Var(0.4)
-        self.dry_wet = _Var(1.0)  # 0 = dry (passthrough silence), 1 = fully wet
+        self.gain = 0.6
+        self.temperature = 0.6
+        self.smoothing = 0.4
+        self.dry_wet = 1.0  # 0 = dry (passthrough silence), 1 = fully wet
 
-        self.input_mode = _Var("random")
+        self.input_mode = "random"
         self.audio_file_path = None
         self.encoded_latents = None
         self.raw_audio = None          # float32 numpy array, resampled to model SR
         self.latent_position = 0
         self.audio_sample_pos = 0      # advances by chunk_samples in sync with latent_position
-        self.loop_audio = _Var(True)
-        self.random_intensity = _Var(1.0)
-        self.density = _Var(1.0)
+        self.loop_audio = True
+        self.random_intensity = 1.0
+        self.density = 1.0
         self.held_z = None
         self.density_hold_frames = 0
 
         self.latent_bias: list[float] = []   # per-dim additive bias
         self.latent_scale: list[float] = []  # per-dim multiplicative scale
-        self.latent_global_bias = _Var(0.0)  # additive bias applied to all latent dims
+        self.latent_global_bias = 0.0
 
         # Subband control: grid of (num_subbands, n_timesteps) with 0.0 or 1.0
         self.subband_pattern = None  # torch tensor shaped (num_subbands, n_timesteps)
         self.subband_position = 0    # current timestep in pattern (loopback)
-        self.subband_intensity = _Var(1.0)  # global control: 0.0=muted, 1.0=full
+        self.subband_intensity = 1.0
 
-        self.phase_enabled = _Var(False)
-        self.phase_value = _Var(0.0)
+        self.phase_enabled = False
+        self.phase_value = 0.0
         self.phase_anchors = []
         self.phase_map_anchor = None   # {"mean_z": tensor, "std_z": tensor} or None
 
-        self.use_prior = _Var(False)
+        self.use_prior = False
         self.prior_model = None
         self.embedded_prior_available = False
         self.prior_seed_channels = None
         self.embedded_prior_seed_channels = None
-        self.prior_temperature = _Var(1.0)
+        self.prior_temperature = 1.0
         self.prior_needs_warmup = True
         self.prior_chunks_generated = 0
 

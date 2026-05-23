@@ -37,6 +37,7 @@ class MainWindow(QMainWindow):
 
         # Title bar
         self._titlebar = TitleBar()
+        self._titlebar.homeRequested.connect(lambda: self._navigate("home"))
         outer.addWidget(self._titlebar)
 
         # Middle: sidebar + content

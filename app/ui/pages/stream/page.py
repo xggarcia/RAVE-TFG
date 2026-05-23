@@ -148,6 +148,7 @@ class StreamPage(QWidget):
         self._stack_wrap = QScrollArea()
         self._stack_wrap.setWidgetResizable(True)
         self._stack_wrap.setFrameShape(QFrame.NoFrame)
+        self._stack_wrap.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._stack_wrap.setStyleSheet(f"QScrollArea {{ background:{BG0}; }}")
 
         self._content = QWidget()
@@ -365,11 +366,14 @@ class StreamPage(QWidget):
 
         _accents = [ACID, "#40d0d8", "#d840b8", AMBER, "#5090d8", "#e0406a", FG2, "#c8a060"]
 
+        _SLOT_W = 420
+
         self._slot_widgets = []
         for i, selected_model in enumerate(self._slot_assignments):
             name = chr(65 + i)
             accent = _accents[i % len(_accents)]
             slot = SlotPanel(i, name, self._models, selected_model, accent, params=self._slot_param_state[i])
+            slot.setFixedWidth(_SLOT_W)
             slot.paramsChanged.connect(self._on_slot_params_changed)
             slot.modelChanged.connect(self._on_slot_model_changed)
             slot.enabledChanged.connect(self._on_slot_enabled_changed)
@@ -384,6 +388,7 @@ class StreamPage(QWidget):
         if not streaming:
             n = len(self._slot_assignments)
             add_btn = self._make_add_slot_btn()
+            add_btn.setFixedWidth(_SLOT_W)
             grid.addWidget(add_btn, n // 2, n % 2)
 
         adv_panel = AdvancedSlotPanel()

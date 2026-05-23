@@ -1,5 +1,5 @@
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton
+from PySide6.QtCore import Qt, QPoint, Signal
 from PySide6.QtGui import QPainter, QColor
 
 from app.ui.tokens import ACID, BG2, BG3, LINE0, MONO
@@ -29,6 +29,8 @@ class _TrafficDot(QWidget):
 
 
 class TitleBar(QWidget):
+    homeRequested = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(32)
@@ -47,14 +49,16 @@ class TitleBar(QWidget):
         dl.addWidget(_TrafficDot("#cc9a14", "#9a7210", lambda: self.window().showMinimized()))
         layout.addWidget(dots)
 
-        # Centered title
-        title_lbl = QLabel("RAVE-TFG")
-        title_lbl.setAlignment(Qt.AlignCenter)
-        title_lbl.setStyleSheet(
-            f"color:{ACID}; {MONO} "
-            f"font-size:12px; font-weight:600; letter-spacing:3px;"
+        # Centered title — clickable, navigates to home
+        title_btn = QPushButton("RAVE-TFG")
+        title_btn.setFlat(True)
+        title_btn.setCursor(Qt.PointingHandCursor)
+        title_btn.setStyleSheet(
+            f"color:{ACID}; {MONO} font-size:12px; font-weight:600; letter-spacing:3px; "
+            f"background:transparent; border:none;"
         )
-        layout.addWidget(title_lbl, 1)
+        title_btn.clicked.connect(self.homeRequested.emit)
+        layout.addWidget(title_btn, 1)
 
         # Spacer to balance traffic lights
         spacer = QWidget()

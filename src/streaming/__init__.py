@@ -5,7 +5,6 @@ from .phase_control import (
     apply_phase_bias,
     encode_phase_anchor,
     generate_anchors_from_folders,
-    interpolate_phase,
     load_phase_anchors,
     save_phase_anchors,
 )
@@ -13,7 +12,6 @@ from .phase_control import (
 __all__ = [
     "StreamingEngine",
     "encode_phase_anchor",
-    "interpolate_phase",
     "apply_phase_bias",
     "save_phase_anchors",
     "load_phase_anchors",

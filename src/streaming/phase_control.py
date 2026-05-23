@@ -35,40 +35,6 @@ def encode_phase_anchor(model, audio_path, sr):
     return {"mean_z": mean_z, "std_z": std_z}
 
 
-def interpolate_phase(anchors, phase_value):
-    """Interpolate between phase anchors based on slider position.
-
-    Anchors are evenly spaced along [0.0, 1.0]. With N anchors, anchor i
-    sits at position i / (N - 1). The two bracketing anchors are blended
-    linearly.
-
-    Args:
-        anchors: List of anchor dicts, each with 'mean_z' and 'std_z'.
-        phase_value: Float in [0.0, 1.0] from the phase slider.
-
-    Returns:
-        Tuple of (blended_mean, blended_std), each shape (1, latent_size, 1).
-    """
-    n = len(anchors)
-    phase_value = max(0.0, min(1.0, phase_value))
-
-    if n < 2:
-        return anchors[0]["mean_z"], anchors[0]["std_z"]
-
-    segment_length = 1.0 / (n - 1)
-    idx = min(int(phase_value / segment_length), n - 2)
-    t = (phase_value - idx * segment_length) / segment_length
-    t = max(0.0, min(1.0, t))
-
-    left = anchors[idx]
-    right = anchors[idx + 1]
-
-    blended_mean = (1 - t) * left["mean_z"] + t * right["mean_z"]
-    blended_std = (1 - t) * left["std_z"] + t * right["std_z"]
-
-    return blended_mean, blended_std
-
-
 def apply_phase_bias(z, blended_mean, blended_std):
     """Shift a latent tensor toward a target distribution.
 

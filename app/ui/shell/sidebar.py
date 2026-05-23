@@ -103,9 +103,15 @@ class Sidebar(QWidget):
         )
         bl.addWidget(logo)
 
-        name_lbl = QLabel("RAVE-TFG")
-        name_lbl.setStyleSheet(f"color:{FG0}; {MONO} font-size:11px; font-weight:600; letter-spacing:2px;")
-        bl.addWidget(name_lbl)
+        name_btn = QPushButton("RAVE-TFG")
+        name_btn.setFlat(True)
+        name_btn.setCursor(Qt.PointingHandCursor)
+        name_btn.setStyleSheet(
+            f"color:{FG0}; {MONO} font-size:11px; font-weight:600; letter-spacing:2px; "
+            f"background:transparent; border:none; padding:0;"
+        )
+        name_btn.clicked.connect(lambda: self._on_clicked("home"))
+        bl.addWidget(name_btn)
         bl.addStretch()
         root.addWidget(brand)
 

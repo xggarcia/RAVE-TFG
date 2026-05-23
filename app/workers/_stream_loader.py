@@ -14,53 +14,6 @@ if TYPE_CHECKING:
     from app.workers.stream_worker import StreamWorker
 
 
-def _coerce_prior_latent(z, latent_size: int, latent_length: int):
-    import torch
-
-    if isinstance(z, (tuple, list)):
-        tensors = [item for item in z if torch.is_tensor(item)]
-        if not tensors:
-            raise ValueError("Prior output tuple/list has no tensor")
-        z = tensors[0]
-
-    if not torch.is_tensor(z):
-        raise ValueError("Prior output is not a tensor")
-
-    if z.dim() == 2:
-        z = z.unsqueeze(0)
-    elif z.dim() != 3:
-        raise ValueError(f"Unsupported prior latent rank: {z.dim()}")
-
-    if z.shape[1] != latent_size and z.shape[2] == latent_size:
-        z = z.transpose(1, 2)
-
-    if z.shape[1] != latent_size:
-        raise ValueError(f"Prior latent channels mismatch: got {z.shape[1]}, expected {latent_size}")
-
-    if z.shape[2] > latent_length:
-        z = z[:, :, :latent_length]
-    elif z.shape[2] < latent_length:
-        z = torch.nn.functional.pad(z, (0, latent_length - z.shape[2]))
-
-    return z
-
-
-def _find_compatible_prior_seed(prior_model, decoder_model, latent_size: int, latent_length: int):
-    import torch
-
-    with torch.no_grad():
-        for seed_channels in (1, 1024):
-            try:
-                seed = torch.zeros(1, seed_channels, latent_length).float()
-                z_out = prior_model.prior(seed)
-                z = _coerce_prior_latent(z_out, latent_size, latent_length)
-                _ = decoder_model.decode(z)
-                return seed_channels
-            except Exception:
-                continue
-    return None
-
-
 def _latent_size_hint_from_path(model_path: str) -> int | None:
     m = re.search(r"[_\-]z(\d{1,4})(?:[_\-.]|$)", model_path, re.IGNORECASE)
     if not m:
@@ -114,12 +67,6 @@ def _clear_slot_model(slot: _SlotState):
     slot.status_var = "Inactive"
     slot.cached_audio = None
     slot.prev_z = None
-    slot.prior_model = None
-    slot.prior_seed_channels = None
-    slot.embedded_prior_available = False
-    slot.embedded_prior_seed_channels = None
-    slot.prior_needs_warmup = True
-    slot.prior_chunks_generated = 0
 
 
 def _validate_active_slots(active_slots: list[_SlotState]) -> set:
@@ -235,26 +182,7 @@ def _load_slot_model(worker: "StreamWorker", index: int, model_path: str):
     slot.latent_length = latent_length
     slot.output_length = output_length
     slot.model_sr = _detect_model_sr(model, model_path)
-    slot.latent_bias = [0.0] * latent_size
     slot.latent_scale = [1.0] * latent_size
-    slot.prior_model = None
-    slot.prior_seed_channels = None
-    slot.embedded_prior_available = False
-    slot.embedded_prior_seed_channels = None
-    slot.prior_needs_warmup = True
-    slot.prior_chunks_generated = 0
-
-    if hasattr(model, "prior"):
-        embedded_seed = _find_compatible_prior_seed(
-            prior_model=model,
-            decoder_model=model,
-            latent_size=latent_size,
-            latent_length=latent_length,
-        )
-        if embedded_seed is not None:
-            slot.embedded_prior_available = True
-            slot.embedded_prior_seed_channels = embedded_seed
-            worker.log.emit("INFO", f"Slot {index + 1}: embedded prior available (seed channels: {embedded_seed})")
 
     slot.prev_z = None
     slot.cached_audio = None

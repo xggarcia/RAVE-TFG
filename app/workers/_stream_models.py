@@ -61,11 +61,7 @@ class _SlotState:
         self.audio_sample_pos = 0      # advances by chunk_samples in sync with latent_position
         self.loop_audio = True
         self.random_intensity = 1.0
-        self.density = 1.0
-        self.held_z = None
-        self.density_hold_frames = 0
 
-        self.latent_bias: list[float] = []   # per-dim additive bias
         self.latent_scale: list[float] = []  # per-dim multiplicative scale
         self.latent_global_bias = 0.0
 
@@ -78,15 +74,6 @@ class _SlotState:
         self.phase_value = 0.0
         self.phase_anchors = []
         self.phase_map_anchor = None   # {"mean_z": tensor, "std_z": tensor} or None
-
-        self.use_prior = False
-        self.prior_model = None
-        self.embedded_prior_available = False
-        self.prior_seed_channels = None
-        self.embedded_prior_seed_channels = None
-        self.prior_temperature = 1.0
-        self.prior_needs_warmup = True
-        self.prior_chunks_generated = 0
 
         self.cached_audio = None
         self.last_decode_cycle = -1

@@ -76,7 +76,7 @@ class StreamPage(QWidget):
 
     @staticmethod
     def _default_adv_state(n_dims: int = 8) -> dict:
-        return {"prior_on": False, "scales": [1.0] * n_dims, "active_dim": 0}
+        return {"scales": [1.0] * n_dims, "active_dim": 0}
 
     @staticmethod
     def _default_slot_params() -> dict:
@@ -613,7 +613,7 @@ class StreamPage(QWidget):
             for i, state in enumerate(self._slot_adv_state):
                 scales = state.get("scales", [])
                 for dim, scale in enumerate(scales):
-                    self._worker.set_slot_latent_dim(i, dim, 0.0, float(scale))
+                    self._worker.set_slot_latent_dim(i, dim, float(scale))
             if self._adv_panel and 0 <= self._selected_slot < len(self._slot_latent_sizes):
                 latent_size = self._slot_latent_sizes[self._selected_slot]
                 if latent_size:
@@ -678,12 +678,7 @@ class StreamPage(QWidget):
             if 0 <= dim < len(scales):
                 scales[dim] = scale
         if self._worker:
-            self._worker.set_slot_latent_dim(slot_idx, dim, 0.0, scale)
-
-    @Slot(int, bool)
-    def _on_adv_use_prior(self, slot_idx: int, enabled: bool):
-        if 0 <= slot_idx < len(self._slot_adv_state):
-            self._slot_adv_state[slot_idx]["prior_on"] = enabled
+            self._worker.set_slot_latent_dim(slot_idx, dim, scale)
 
     @Slot(int, float, float, float, float, float, float)
     def _on_slot_params_changed(self, index, gain, temp, smooth, dry_wet, noise, bias):

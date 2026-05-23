@@ -140,20 +140,13 @@ class StreamWorker(QThread):
         if slot is not None:
             load_slot_anchors(slot, self.warning.emit, path)
 
-    def set_slot_latent_dim(self, index: int, dim: int, bias: float, scale: float):
+    def set_slot_latent_dim(self, index: int, dim: int, scale: float):
         with self._lock:
             if not (0 <= index < len(self._slots)):
                 return
             slot = self._slots[index]
-            if 0 <= dim < len(slot.latent_bias):
-                slot.latent_bias[dim] = max(-2.0, min(2.0, bias))
             if 0 <= dim < len(slot.latent_scale):
                 slot.latent_scale[dim] = max(0.0, min(3.0, scale))
-
-    def set_slot_use_prior(self, index: int, enabled: bool):
-        with self._lock:
-            if 0 <= index < len(self._slots):
-                self._slots[index].use_prior = bool(enabled)
 
     def set_slot_phase_map_anchor(self, index: int, mean_z: list, std_z: list):
         with self._lock:

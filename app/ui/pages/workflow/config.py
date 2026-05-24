@@ -36,11 +36,9 @@ if TYPE_CHECKING:
     from app.ui.pages.workflow.page import WorkflowPage
 
 EXTRA_CONFIGS = [
-    ("noise",    "noise injection"),
-    ("causal",   "causal convolutions"),
-    ("snake",    "snake activations"),
-    ("hinge",    "hinge discriminator"),
-    ("descript", "descript discriminator"),
+    ("causal", "causal convolutions"),
+    ("noise",  "noise synthesizer V2"),
+    ("hybrid", "mel-spectrogram input"),
 ]
 DEFAULT_ON = {"noise", "causal"}
 

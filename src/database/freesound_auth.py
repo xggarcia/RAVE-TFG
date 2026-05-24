@@ -3,29 +3,21 @@
 The /sounds/{id}/download/ endpoint requires OAuth2 (Bearer token).
 Token auth (API key) only works for read-only endpoints like search and analysis.
 
-One-time setup
---------------
-1. Go to https://freesound.org/apiv2/apply/ and open your app settings.
-2. Set the Redirect URI to:
-       https://freesound.org/home/app_permissions/permission_granted/
-3. Add to your .env:
-       FREESOUND_CLIENT_SECRET=<your client secret>
-   (FREESOUND_CLIENT_ID defaults to FREESOUND_API_KEY if not set separately)
-
-After the first authorization, tokens are cached in .freesound_tokens.json
-and refreshed automatically. Re-authorization is only needed when the refresh
-token expires (typically after a long period of inactivity).
+Credentials (client_id / client_secret) must be passed explicitly by the
+caller; this module never reads them from environment variables. Tokens are
+cached in .freesound_tokens.json and refreshed automatically. The interactive
+authorization code step is delegated to a ``code_provider`` callable so that
+callers can wire it to a GUI dialog or a CLI ``input()`` prompt.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import time
 import urllib.parse
 import webbrowser
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import requests
 
@@ -33,6 +25,8 @@ _AUTH_URL = "https://freesound.org/apiv2/oauth2/authorize/"
 _TOKEN_URL = "https://freesound.org/apiv2/oauth2/access_token/"
 _REDIRECT_URI = "https://freesound.org/home/app_permissions/permission_granted/"
 _TOKEN_CACHE = Path(".freesound_tokens.json")
+
+CodeProvider = Callable[[str], str]
 
 
 def _load_cache() -> Optional[dict]:
@@ -44,6 +38,19 @@ def _load_cache() -> Optional[dict]:
 
 def _save_cache(data: dict) -> None:
     _TOKEN_CACHE.write_text(json.dumps(data, indent=2))
+
+
+def clear_cache() -> None:
+    """Delete the cached token file (call when credentials change)."""
+    _TOKEN_CACHE.unlink(missing_ok=True)
+
+
+def authorization_url(client_id: str) -> str:
+    return _AUTH_URL + "?" + urllib.parse.urlencode({
+        "client_id": client_id,
+        "response_type": "code",
+        "redirect_uri": _REDIRECT_URI,
+    })
 
 
 def _post_token(client_id: str, client_secret: str, **payload) -> dict:
@@ -58,40 +65,43 @@ def _post_token(client_id: str, client_secret: str, **payload) -> dict:
     return data
 
 
-def _run_authorization_flow(client_id: str, client_secret: str) -> dict:
-    """Open browser for authorization, ask user to paste the code, return token data."""
-    auth_url = _AUTH_URL + "?" + urllib.parse.urlencode({
-        "client_id": client_id,
-        "response_type": "code",
-        "redirect_uri": _REDIRECT_URI,
-    })
-
-    print("\n" + "=" * 68)
-    print("Freesound OAuth2 — one-time authorization needed for downloads")
-    print("=" * 68)
-    print("1. Opening browser (or copy the URL manually):")
-    print(f"   {auth_url}")
-    print("2. Log in to Freesound and authorize the app.")
-    print("3. The page will show an authorization code — paste it below.")
-    print("=" * 68)
-    webbrowser.open(auth_url)
-
-    code = input("Authorization code: ").strip()
-    if not code:
-        raise ValueError("No authorization code provided.")
-
+def exchange_code(client_id: str, client_secret: str, code: str) -> dict:
+    """Exchange an authorization code for tokens and cache them."""
     data = _post_token(
         client_id, client_secret,
         grant_type="authorization_code",
-        code=code,
+        code=code.strip(),
         redirect_uri=_REDIRECT_URI,
     )
     _save_cache(data)
-    print("[OK] Authorized. Tokens cached in .freesound_tokens.json\n")
     return data
 
 
-def get_access_token(client_id: str, client_secret: str) -> str:
+def _run_authorization_flow(
+    client_id: str,
+    client_secret: str,
+    code_provider: Optional[CodeProvider],
+) -> dict:
+    """Open the browser, ask ``code_provider`` for the code, exchange and cache."""
+    if code_provider is None:
+        raise RuntimeError(
+            "Freesound OAuth2 authorization required but no code_provider given. "
+            "Authorize from the UI before starting a download."
+        )
+
+    auth_url = authorization_url(client_id)
+    webbrowser.open(auth_url)
+    code = code_provider(auth_url)
+    if not code or not code.strip():
+        raise ValueError("No authorization code provided.")
+    return exchange_code(client_id, client_secret, code)
+
+
+def get_access_token(
+    client_id: str,
+    client_secret: str,
+    code_provider: Optional[CodeProvider] = None,
+) -> str:
     """Return a valid access token, refreshing or re-authorizing as needed."""
     cached = _load_cache()
 
@@ -107,16 +117,14 @@ def get_access_token(client_id: str, client_secret: str) -> str:
                 )
                 _save_cache(data)
                 return data["access_token"]
-            except Exception as exc:
-                print(f"Token refresh failed ({exc}), re-authorizing...")
+            except Exception:
+                pass
 
-    return _run_authorization_flow(client_id, client_secret)["access_token"]
+    return _run_authorization_flow(client_id, client_secret, code_provider)["access_token"]
 
 
-def load_oauth2_credentials() -> Optional[tuple[str, str]]:
-    """Return (client_id, client_secret) from env, or None if not configured."""
-    client_id = (os.getenv("FREESOUND_CLIENT_ID") or os.getenv("FREESOUND_API_KEY", "")).strip()
-    client_secret = os.getenv("FREESOUND_CLIENT_SECRET", "").strip()
-    if client_id and client_secret:
-        return client_id, client_secret
-    return None
+def has_valid_cached_token() -> bool:
+    cached = _load_cache()
+    if not cached:
+        return False
+    return time.time() < cached.get("expires_at", 0) - 60

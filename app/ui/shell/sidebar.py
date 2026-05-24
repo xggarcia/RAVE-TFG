@@ -28,8 +28,11 @@ NAV = [
     {
         "group": "CORE WORKFLOW",
         "items": [
-            {"id": "dataset", "label": "Dataset Creation"},
-            {"id": "train",   "label": "Train Model"},
+            {"id": "dataset",    "label": "Dataset Creation"},
+            {"id": "preprocess", "label": "Preprocess"},
+            {"id": "train",      "label": "Train Model"},
+            {"id": "export",     "label": "Export Model"},
+            {"id": "workflow",   "label": "Full Workflow"},
         ],
     },
     {

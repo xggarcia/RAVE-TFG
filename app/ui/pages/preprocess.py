@@ -71,7 +71,7 @@ class PreprocessPage(QWidget):
 
         # Audio folder
         self._audio_input = FileInput(directory=True, placeholder="~/datasets/audio/")
-        body.addWidget(Field("Audio folder", hint="Recursively scans for .wav, .flac, .mp3", inline=True).add(self._audio_input))
+        body.addWidget(Field("Audio folder", hint="Select the audio folder to preprocess", inline=True).add(self._audio_input))
 
         # Channels
         self._channels = RadioGroup(
@@ -98,11 +98,11 @@ class PreprocessPage(QWidget):
         sl.addWidget(self._max_db)
         sl.addWidget(self._db_unit)
         sl.addStretch()
-        body.addWidget(Field("Max DB size", hint="Caps the LMDB file at this size; 0 = unlimited", inline=True).add(size_row))
+        body.addWidget(Field("Max DB size", hint="Caps the LMDB file at this size", inline=True).add(size_row))
 
         # Lazy loading
         self._lazy = Toggle(on=False)
-        body.addWidget(Field("Lazy loading", hint="Stream audio at train time. Lower disk use, slower training.", inline=True).add(self._lazy))
+        body.addWidget(Field("Lazy loading", hint="Stream audio at train time.\nLower disk use, slower training.", inline=True).add(self._lazy))
 
         # Output path
         self._output_input = FileInput(directory=True, placeholder="~/preprocessed/")
@@ -168,6 +168,7 @@ class PreprocessPage(QWidget):
             channels=channels,
             lazy=self._lazy.is_on,
             max_db_size=max_db,
+            output_path=self._output_input.path or None,
         )
         self._worker.log.connect(self._progress.append_log)
         self._worker.finished.connect(self._on_finished)

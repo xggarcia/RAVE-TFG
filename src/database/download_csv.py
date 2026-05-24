@@ -21,7 +21,7 @@ from typing import Optional
 import requests
 
 from src.database._freesound_api import FREESOUND_BASE_URL, _load_dotenv
-from src.database.freesound_auth import get_access_token, load_oauth2_credentials
+from src.database.freesound_auth import get_access_token
 
 
 def _headers(api_key: str) -> dict[str, str]:
@@ -99,11 +99,21 @@ def _preview_url_from_payload(payload: dict) -> Optional[str]:
 	)
 
 
-def download_sound_by_id(sound_id: str, api_key: str, output_dir: Path, skip_existing: bool) -> bool:
+def download_sound_by_id(
+	sound_id: str,
+	api_key: str,
+	output_dir: Path,
+	skip_existing: bool,
+	client_secret: Optional[str] = None,
+	client_id: Optional[str] = None,
+) -> bool:
 	"""Download one sound by id.
 
-	Tries the original file via OAuth2 Bearer token (full quality, any duration).
-	Falls back to HQ preview MP3 if OAuth2 is not configured or download fails.
+	If ``client_secret`` is provided, tries the original file via OAuth2 Bearer
+	token (full quality, any duration). ``client_id`` defaults to ``api_key`` —
+	Freesound apps typically share the same string for both.
+
+	Falls back to HQ preview MP3 if OAuth2 is not configured or fails.
 	"""
 	try:
 		sound_info = _get_sound_info(sound_id, api_key)
@@ -123,12 +133,11 @@ def download_sound_by_id(sound_id: str, api_key: str, output_dir: Path, skip_exi
 		print(f"[{sound_id}] already exists, skipping: {original_path.name}")
 		return True
 
-	# 1) Try original download via OAuth2 (requires FREESOUND_CLIENT_SECRET in .env).
-	credentials = load_oauth2_credentials()
-	if credentials:
+	# 1) Try original download via OAuth2 (requires client_secret).
+	if client_secret:
 		original_url = f"{FREESOUND_BASE_URL}/sounds/{sound_id}/download/"
 		try:
-			access_token = get_access_token(*credentials)
+			access_token = get_access_token(client_id or api_key, client_secret)
 			_stream_download(original_url, {"Authorization": f"Bearer {access_token}"}, original_path)
 			print(f"[{sound_id}] downloaded original: {original_path.name}")
 			return True
@@ -136,8 +145,10 @@ def download_sound_by_id(sound_id: str, api_key: str, output_dir: Path, skip_exi
 			print(f"[{sound_id}] original download failed: {exc}")
 			if original_path.exists():
 				original_path.unlink(missing_ok=True)
+		except Exception as exc:
+			print(f"[{sound_id}] OAuth2 token error: {exc}")
 	else:
-		print(f"[{sound_id}] OAuth2 not configured (no FREESOUND_CLIENT_SECRET). Falling back to preview.")
+		print(f"[{sound_id}] No client_secret provided — falling back to preview.")
 
 	# 2) Fallback: HQ preview download (30s MP3, no OAuth2 required).
 	preview_url = _preview_url_from_payload(sound_info)
@@ -165,6 +176,8 @@ def download_from_csv(
     output_dir: Path,
     api_key: str,
     skip_existing: bool = True,
+    client_secret: Optional[str] = None,
+    client_id: Optional[str] = None,
 ) -> tuple[int, int]:
     """Read sound IDs from csv_path and download each one. Returns (ok, total)."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -182,7 +195,10 @@ def download_from_csv(
     ok = 0
     for idx, sound_id in enumerate(sound_ids, 1):
         print(f"\n[{idx}/{len(sound_ids)}] {sound_id}")
-        if download_sound_by_id(sound_id, api_key, output_dir, skip_existing):
+        if download_sound_by_id(
+            sound_id, api_key, output_dir, skip_existing,
+            client_secret=client_secret, client_id=client_id,
+        ):
             ok += 1
     return ok, len(sound_ids)
 

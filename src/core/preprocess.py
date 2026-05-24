@@ -6,7 +6,8 @@ import os
 import subprocess
 
 
-def PreprocessDataset(audio_path, channels=1, lazy=False, max_db_size=10):
+def PreprocessDataset(audio_path, channels=1, lazy=False, max_db_size=10,
+                      output_path=None):
     """
     Preprocess the dataset.
 
@@ -17,13 +18,15 @@ def PreprocessDataset(audio_path, channels=1, lazy=False, max_db_size=10):
             training (slower, especially on Windows). Defaults to False so
             the dataset is fully decoded to int16 upfront for fast training.
         max_db_size: Maximum database size in GB
+        output_path: Destination folder for the LMDB + metadata.yaml.
+            Defaults to ``./preprocessed_data`` (relative to CWD) when None.
 
     Returns:
         Path to preprocessed data directory
     """
     # Use absolute paths to avoid RAVE bug with relative paths
     audio_path = os.path.abspath(audio_path)
-    data_path = os.path.abspath("preprocessed_data")
+    data_path = os.path.abspath(output_path or "preprocessed_data")
     
     # Create directory if it doesn't exist
     os.makedirs(data_path, exist_ok=True)

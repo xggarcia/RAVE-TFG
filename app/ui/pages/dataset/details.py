@@ -2,7 +2,7 @@
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QLineEdit, QScrollArea, QFrame,
+    QLineEdit, QScrollArea, QFrame, QInputDialog, QMessageBox,
 )
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QColor, QPainter, QPen
@@ -13,6 +13,39 @@ from app.ui.widgets.form import (
 )
 from app.ui.widgets.progress_panel import ProgressPanel
 from app.workers.dataset_worker import DatasetWorker
+
+
+def ensure_freesound_oauth(parent: QWidget, client_id: str, client_secret: str) -> bool:
+    """Guarantee a valid Freesound OAuth token is cached on disk.
+
+    Returns True if a valid token is available (cached, refreshed, or freshly
+    obtained via a browser + QInputDialog flow). Returns False on cancel or
+    failure (a QMessageBox is shown on failure).
+    """
+    from src.database import freesound_auth as fa
+
+    if not client_id or not client_secret:
+        QMessageBox.warning(
+            parent, "Missing credentials",
+            "Both API key (client_id) and Client secret are required to download originals.",
+        )
+        return False
+
+    def _code_provider(auth_url: str) -> str:
+        code, ok = QInputDialog.getText(
+            parent,
+            "Freesound authorization",
+            "A browser tab has been opened. Authorize the app on Freesound\n"
+            f"and paste the authorization code below.\n\nURL: {auth_url}",
+        )
+        return code.strip() if ok else ""
+
+    try:
+        token = fa.get_access_token(client_id, client_secret, code_provider=_code_provider)
+        return bool(token)
+    except Exception as exc:
+        QMessageBox.critical(parent, "Authorization failed", str(exc))
+        return False
 
 
 def _input(default: str = "", width: int | None = None) -> QLineEdit:
@@ -136,6 +169,9 @@ class DoAllDetail(QWidget):
         self._folder = FileInput(placeholder="~/datasets/build-01/")
         self._selection_csv_name = _input("selection", width=220)
         self._api_key_do = _input("", width=220)
+        self._client_id_do = _input("", width=220)
+        self._client_secret_do = _input("", width=220)
+        self._client_secret_do.setEchoMode(QLineEdit.Password)
         cfg_body.addWidget(Field("Query file").add(self._query))
         cfg_body.addWidget(Field("Working folder").add(self._folder))
         cfg_body.addWidget(Field(
@@ -144,8 +180,16 @@ class DoAllDetail(QWidget):
         ).add(self._selection_csv_name))
         cfg_body.addWidget(Field(
             "API key",
-            hint="Reads FREESOUND_API_KEY from .env if blank.",
+            hint="Token for read-only endpoints (search, sound info).",
         ).add(self._api_key_do))
+        cfg_body.addWidget(Field(
+            "Client ID",
+            hint="OAuth2 client_id. Leave blank to reuse the API key.",
+        ).add(self._client_id_do))
+        cfg_body.addWidget(Field(
+            "Client secret",
+            hint="Required to download originals (OAuth2). \nWithout it, only previews are fetched.",
+        ).add(self._client_secret_do))
         cols.addWidget(cfg_panel)
         layout.addLayout(cols)
 
@@ -154,7 +198,6 @@ class DoAllDetail(QWidget):
         layout.addStretch()
 
     def _run(self):
-        import os
         folder = self._folder.path
         query  = self._query.path
         sel_name = self._selection_csv_name.text().strip() or "selection"
@@ -165,7 +208,9 @@ class DoAllDetail(QWidget):
             return
 
         sel_csv = Path(folder) / f"{sel_name}.csv"
-        api_key = self._api_key_do.text().strip() or os.getenv("FREESOUND_API_KEY", "").strip()
+        api_key = self._api_key_do.text().strip()
+        client_id = self._client_id_do.text().strip() or api_key
+        client_secret = self._client_secret_do.text().strip()
 
         if query and api_key and not sel_csv.exists():
             # Stage 1: download previews into {folder}/previews/
@@ -214,6 +259,15 @@ class DoAllDetail(QWidget):
 
         if sel_csv.exists() and api_key:
             # Stages 3-5: final download → normalize → convert
+            if not client_secret:
+                self._prog.start("Missing client secret")
+                self._prog.finish(False, "Set Client secret to download originals (OAuth2 is required).")
+                return
+            if not ensure_freesound_oauth(self, client_id, client_secret):
+                self._prog.start("Authorization required")
+                self._prog.finish(False, "Freesound authorization was cancelled or failed.")
+                return
+
             from src.database.download_csv import download_from_csv
             from src.database.normalize_volume import normalize_directory
             from src.database.convert_format import convert_directory
@@ -221,9 +275,14 @@ class DoAllDetail(QWidget):
             final_dir = Path(folder) / "audio"
             _csv = sel_csv
             _key = api_key
+            _cid = client_id
+            _secret = client_secret
 
             def _run_stages():
-                ok, total = download_from_csv(_csv, final_dir, _key, skip_existing=True)
+                ok, total = download_from_csv(
+                    _csv, final_dir, _key,
+                    skip_existing=True, client_secret=_secret, client_id=_cid,
+                )
                 print(f"\nDownloaded {ok}/{total} files.")
                 ok2, n2 = normalize_directory(final_dir)
                 print(f"Normalized {ok2}/{n2} files.")
@@ -243,7 +302,7 @@ class DoAllDetail(QWidget):
         if not sel_csv.exists():
             missing.append(f"Selection CSV not found at: {sel_csv}  (run Preview step first)")
         if not api_key:
-            missing.append("Freesound API key (set FREESOUND_API_KEY in .env or enter above)")
+            missing.append("Freesound API key (enter it above)")
         self._prog.start("Missing required fields")
         self._prog.finish(False, "Please fill in:\n• " + "\n• ".join(missing))
 

@@ -144,7 +144,7 @@ class TrainPage(QWidget):
         self._config_box.addItems(CONFIGS)
         right_col.addWidget(Field("Config").add(self._config_box))
 
-        self._db_input = FileInput(placeholder="~/preprocessed/data.lmdb", directory=False)
+        self._db_input = FileInput(placeholder="~/preprocessed", directory=True)
         left_col.addWidget(Field("Dataset path").add(self._db_input))
 
         self._channels = RadioGroup(

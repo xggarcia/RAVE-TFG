@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QSlider,
     QVBoxLayout,
@@ -29,7 +30,7 @@ from app.ui.widgets.form import (
 )
 from app.ui.widgets.progress_panel import ProgressPanel
 from app.workers.dataset_worker import DatasetWorker
-from app.ui.pages.dataset.details import _DetailHeader, _input
+from app.ui.pages.dataset.details import _DetailHeader, _input, ensure_freesound_oauth
 
 
 # ── First download ────────────────────────────────────────────────────────────
@@ -63,8 +64,8 @@ class FirstDownloadDetail(QWidget):
         self._worker = None
 
     def _run(self):
-        self._prog.start("Downloading previews…")
-        self._prog.finish(False, "First download requires a Freesound API key. Set FREESOUND_API_KEY and run from the CLI.")
+        self._prog.start("Not wired")
+        self._prog.finish(False, "First download is run from the Full pipeline (do-all) panel — open that step instead.")
 
 
 # ── Final download ────────────────────────────────────────────────────────────
@@ -87,11 +88,24 @@ class FinalDownloadDetail(QWidget):
         body.addWidget(Field("Selected IDs CSV", inline=True).add(self._csv))
         body.addWidget(Field("Output folder", inline=True).add(self._out))
         self._api_key_input = _input("", width=260)
+        self._client_id_input = _input("", width=260)
+        self._client_secret_input = _input("", width=260)
+        self._client_secret_input.setEchoMode(QLineEdit.Password)
         body.addWidget(Field(
             "API key",
-            hint="Reads FREESOUND_API_KEY from .env if left blank.",
+            hint="Token for read-only endpoints (search, sound info).",
             inline=True,
         ).add(self._api_key_input))
+        body.addWidget(Field(
+            "Client ID",
+            hint="OAuth2 client_id. Leave blank to reuse the API key.",
+            inline=True,
+        ).add(self._client_id_input))
+        body.addWidget(Field(
+            "Client secret",
+            hint="Required for original downloads (OAuth2). Blank = previews only.",
+            inline=True,
+        ).add(self._client_secret_input))
         self._skip = Toggle(on=True)
         body.addWidget(Field("Skip existing", inline=True).add(self._skip))
         layout.addWidget(panel)
@@ -102,23 +116,31 @@ class FinalDownloadDetail(QWidget):
         self._worker = None
 
     def _run(self):
-        import os
         csv_path = self._csv.path
         out_path = self._out.path
         if not csv_path or not out_path:
             return
-        api_key = (self._api_key_input.text() if self._api_key_input else "").strip()
-        if not api_key:
-            api_key = os.getenv("FREESOUND_API_KEY", "").strip()
+        api_key = self._api_key_input.text().strip()
+        client_id = self._client_id_input.text().strip() or api_key
+        client_secret = self._client_secret_input.text().strip()
         if not api_key:
             self._prog.start("Missing API key")
-            self._prog.finish(False, "Set FREESOUND_API_KEY in .env or enter it above.")
+            self._prog.finish(False, "Enter your Freesound API key above.")
             return
+        if not client_secret:
+            self._prog.start("Missing client secret")
+            self._prog.finish(False, "Enter your Freesound Client secret above (originals require OAuth2).")
+            return
+        if not ensure_freesound_oauth(self, client_id, client_secret):
+            self._prog.start("Authorization required")
+            self._prog.finish(False, "Freesound authorization was cancelled or failed.")
+            return
+
         from src.database.download_csv import download_from_csv
         self._prog.start("Downloading audio…")
         self._worker = DatasetWorker(
             download_from_csv, Path(csv_path), Path(out_path), api_key,
-            self._skip.is_on,
+            self._skip.is_on, client_secret, client_id,
         )
         self._worker.log.connect(self._prog.append_log)
         self._worker.finished.connect(lambda ok, msg: self._prog.finish(ok, msg))

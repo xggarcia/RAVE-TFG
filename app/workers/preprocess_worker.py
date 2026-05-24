@@ -23,12 +23,14 @@ class PreprocessWorker(QThread):
     finished = Signal(bool, str)     # success, short message
 
     def __init__(self, audio_path: str, channels: int = 1,
-                 lazy: bool = False, max_db_size: int = 8):
+                 lazy: bool = False, max_db_size: int = 8,
+                 output_path: str | None = None):
         super().__init__()
         self._audio_path  = audio_path
         self._channels    = channels
         self._lazy        = lazy
         self._max_db_size = max_db_size
+        self._output_path = output_path
 
     def run(self):
         old_out, old_err = sys.stdout, sys.stderr
@@ -41,6 +43,7 @@ class PreprocessWorker(QThread):
                 channels=self._channels,
                 lazy=self._lazy,
                 max_db_size=self._max_db_size,
+                output_path=self._output_path,
             )
             self.finished.emit(True, f"Done → {out}")
         except Exception as exc:

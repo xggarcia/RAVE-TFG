@@ -49,16 +49,18 @@ class TitleBar(QWidget):
         dl.addWidget(_TrafficDot("#cc9a14", "#9a7210", lambda: self.window().showMinimized()))
         layout.addWidget(dots)
 
-        # Centered title — clickable, navigates to home
+        # Centered title — only the text is clickable; the rest of the bar drags the window
+        layout.addStretch(1)
         title_btn = QPushButton("RAVE-TFG")
         title_btn.setFlat(True)
         title_btn.setCursor(Qt.PointingHandCursor)
         title_btn.setStyleSheet(
             f"color:{ACID}; {MONO} font-size:12px; font-weight:600; letter-spacing:3px; "
-            f"background:transparent; border:none;"
+            f"background:transparent; border:none; padding:0 4px;"
         )
         title_btn.clicked.connect(self.homeRequested.emit)
-        layout.addWidget(title_btn, 1)
+        layout.addWidget(title_btn, 0, Qt.AlignCenter)
+        layout.addStretch(1)
 
         # Spacer to balance traffic lights
         spacer = QWidget()

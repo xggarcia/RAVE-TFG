@@ -1,6 +1,8 @@
 """Sidebar with grouped navigation. Uses native QPushButton (checkable) for items."""
+from pathlib import Path
+
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
@@ -93,13 +95,17 @@ class Sidebar(QWidget):
         bl.setContentsMargins(14, 10, 14, 10)
         bl.setSpacing(10)
 
-        logo = QLabel("◊")
+
+
+        logo = QLabel()
         logo.setFixedSize(24, 24)
         logo.setAlignment(Qt.AlignCenter)
-        logo.setStyleSheet(
-            f"background:{ACID}; color:{BG1}; border-radius:4px; "
-            f"font-size:14px; font-weight:700;"
+        icon_path = Path(__file__).resolve().parents[1] / "assets" / "app_icon.png"
+        pix = QPixmap(str(icon_path)).scaled(
+            24, 24, Qt.KeepAspectRatio, Qt.SmoothTransformation
         )
+        logo.setPixmap(pix)
+        logo.setStyleSheet(f"background:{ACID}; border-radius:4px;")
         bl.addWidget(logo)
 
         name_btn = QPushButton("RAVE-TFG")

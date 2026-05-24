@@ -31,7 +31,7 @@ class ExportPage(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        self._export_btn = QPushButton("⬆  Export")
+        self._export_btn = QPushButton("▶  Export")
         self._export_btn.setProperty("role", "primary")
         self._export_btn.setFixedHeight(30)
         self._export_btn.clicked.connect(self._start)

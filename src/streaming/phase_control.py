@@ -38,8 +38,10 @@ def encode_phase_anchor(model, audio_path, sr):
 def apply_phase_bias(z, blended_mean, blended_std):
     """Shift a latent tensor toward a target distribution.
 
-    Normalizes z per-channel to zero mean / unit variance, then rescales
-    to match the blended anchor distribution.
+    Centres z by subtracting its cross-channel mean and rescales the
+    residual with the anchor's per-channel std before adding the anchor
+    mean. The engine operates with latent_length=1 in practice; the
+    formula is well-defined for any latent_length.
 
     Args:
         z: Latent tensor of shape (1, latent_size, latent_length).
@@ -49,16 +51,7 @@ def apply_phase_bias(z, blended_mean, blended_std):
     Returns:
         Biased latent tensor, same shape as z.
     """
-    if z.shape[2] == 1:
-        # Single frame — skip normalisation, just shift toward anchor mean
-        return blended_mean + (z - z.mean(dim=1, keepdim=True)) * blended_std.clamp(min=0.01)
-
-    z_mean = z.mean(dim=2, keepdim=True)
-    # correction=0 (population std) avoids the degrees-of-freedom error when latent_length=1
-    z_std = z.std(dim=2, keepdim=True, correction=0).clamp(min=0.01)
-
-    z_norm = (z - z_mean) / z_std
-    return z_norm * blended_std + blended_mean
+    return blended_mean + (z - z.mean(dim=1, keepdim=True)) * blended_std.clamp(min=0.01)
 
 
 def save_phase_anchors(anchors, path):

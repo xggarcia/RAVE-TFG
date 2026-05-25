@@ -38,10 +38,8 @@ def encode_phase_anchor(model, audio_path, sr):
 def apply_phase_bias(z, blended_mean, blended_std):
     """Shift a latent tensor toward a target distribution.
 
-    Centres z by subtracting its cross-channel mean and rescales the
-    residual with the anchor's per-channel std before adding the anchor
-    mean. The engine operates with latent_length=1 in practice; the
-    formula is well-defined for any latent_length.
+    Centres z across channels and rescales by the anchor's per-channel std
+    before adding the anchor mean.
 
     Args:
         z: Latent tensor of shape (1, latent_size, latent_length).

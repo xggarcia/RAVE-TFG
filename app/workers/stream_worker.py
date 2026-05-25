@@ -216,6 +216,9 @@ class StreamWorker(QThread):
         return _recording_stop(self)
 
     def _log_msg(self, message: str):
+        # DEBUG temporal — print a stdout además de emitir el signal
+        # para poder ver todos los logs en la terminal durante diagnóstico.
+        print(f"[stream] {message}", flush=True)
         self.log.emit("INFO", message)
 
     def run(self):

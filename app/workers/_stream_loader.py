@@ -141,6 +141,26 @@ def _encode_audio_for_slot(worker: "StreamWorker", index: int, path: str):
             if isinstance(encoded, (tuple, list)):
                 encoded = encoded[0]
 
+        # DEBUG temporal — diagnóstico de velocidad 2× en modo audio
+        input_samples = int(audio_t.shape[-1])
+        input_duration_s = input_samples / model_sr if model_sr else 0.0
+        encoded_frames = int(encoded.shape[-1])
+        implied_encoder_ratio = input_samples / encoded_frames if encoded_frames else 0.0
+        ratio_check = (
+            slot.output_length / implied_encoder_ratio if implied_encoder_ratio else 0.0
+        )
+        _debug_msg = (
+            f"[DEBUG encode] slot={index + 1} "
+            f"file_sr={file_sr} model_sr={model_sr} "
+            f"input_samples={input_samples} input_duration={input_duration_s:.2f}s "
+            f"encoded_frames={encoded_frames} "
+            f"implied_encoder_ratio={implied_encoder_ratio:.1f} "
+            f"output_length={slot.output_length} "
+            f"ratio_check={ratio_check:.3f}"
+        )
+        print(_debug_msg, flush=True)
+        worker.log.emit("INFO", _debug_msg)
+
         with worker._lock:
             if slot.audio_file_path == path:
                 slot.encoded_latents = encoded
@@ -183,6 +203,17 @@ def _load_slot_model(worker: "StreamWorker", index: int, model_path: str):
     slot.output_length = output_length
     slot.model_sr = _detect_model_sr(model, model_path)
     slot.latent_scale = [1.0] * latent_size
+
+    # DEBUG temporal — diagnóstico de velocidad 2× en modo audio
+    _debug_msg = (
+        f"[DEBUG load] slot={index + 1} "
+        f"latent_size={slot.latent_size} "
+        f"latent_length={slot.latent_length} "
+        f"output_length={slot.output_length} "
+        f"model_sr={slot.model_sr}"
+    )
+    print(_debug_msg, flush=True)
+    worker.log.emit("INFO", _debug_msg)
 
     slot.prev_z = None
     slot.cached_audio = None

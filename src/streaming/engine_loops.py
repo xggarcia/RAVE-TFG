@@ -79,6 +79,14 @@ def generate_mixed_chunk(self, active_slots):
                         slot.latent_position += slot.latent_length
                         slot.audio_sample_pos += self.chunk_samples
                     else:
+                        # DEBUG temporal — log de fin de buffer (un disparo por ciclo de playback)
+                        self.log(
+                            f"[DEBUG playback] slot={slot.slot_id + 1} "
+                            f"end-of-buffer reached: latent_position={slot.latent_position} "
+                            f"latent_length={slot.latent_length} "
+                            f"total_latent_frames={total_latent_frames} "
+                            f"loop_audio={slot.loop_audio}"
+                        )
                         if slot.loop_audio:
                             slot.latent_position = 0
                             slot.audio_sample_pos = 0
@@ -239,8 +247,12 @@ def producer_loop(self):
                     pass
                 self.audio_queue.put_nowait(chunk)
 
-            if self.audio_queue.qsize() >= self.queue_maxsize - 1:
-                time.sleep((self.chunk_samples / self.sr) * 0.1)
+            # Rate-limit por nivel de cola:
+            #   cola baja  (< maxsize/2)  -> producir ASAP, rellenar buffer
+            #   cola alta  (>= maxsize/2) -> ralentizar para evitar drops
+            target_cycle_s = self.chunk_samples / self.sr
+            if self.audio_queue.qsize() >= self.queue_maxsize // 2:
+                time.sleep(target_cycle_s * 1.5)
 
     except Exception as e:
         self.log(f"ERROR in streaming: {str(e)}")

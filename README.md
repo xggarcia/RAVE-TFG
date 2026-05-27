@@ -1,516 +1,197 @@
 # RAVE-TFG
 
-Real-time audio generation and model training toolkit built around RAVE, with an interactive menu, command-line workflows, and multi-model GUI streaming.
+Desktop application for training, exporting, and using [RAVE](https://github.com/acids-icml/RAVE) neural audio models.
+Includes a PySide6 GUI and an optional CLI for scripting.
 
-This README is the single source of user documentation for this repository.
+---
 
-## Quick Start (5 minutes)
+## Requirements
 
-1. Clone and enter the repository:
+- Windows 10/11, Linux, or macOS
+- Python 3.10
+- CUDA-capable GPU recommended for training (CUDA 12.1)
+- ~3 GB disk space for the Python environment
+
+---
+
+## Installation
+
+### Option A — Windows installer (recommended)
+
+Download `RAVE-TFG-Setup.exe` from the [Releases](https://github.com/xggarcia/RAVE-TFG/releases) page and run it.
+
+The installer will:
+1. Create a Python 3.10 virtual environment under the install folder
+2. Install RAVE core (`acids-rave`, `acids-msprior`) and all dependencies — **this downloads ~2 GB of PyTorch CUDA packages and takes 5–10 minutes**
+3. Apply compatibility patches
+4. Create Start Menu and optional desktop shortcut
+
+To launch after install: use the **RAVE-TFG** shortcut or `Start Menu → RAVE-TFG`.
+
+### Option B — Manual (from source)
 
 ```bash
 git clone https://github.com/xggarcia/RAVE-TFG
 cd RAVE-TFG
 ```
 
-2. Create and activate a virtual environment:
-
-Windows:
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-```
-
-Linux/macOS:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-```
-
-3. Install dependencies:
-
-Windows:
-
-```bash
+**Windows:**
+```bat
 install\install.bat
 ```
 
-Linux/macOS:
-
+**Linux / macOS:**
 ```bash
-chmod +x install/install.sh
-./install/install.sh
+chmod +x install/install.sh && ./install/install.sh
 ```
 
-4. Launch the interactive menu:
+The install scripts handle the `acids-rave` / `scipy` version conflict automatically.
 
-```bash
-python main.py
-```
+---
 
-5. First test:
-- Go to Generate & Stream.
-- Choose Multi-model GUI streaming.
-- Use the included demo model first.
-
-## Why install scripts are recommended
-
-The install scripts handle version compatibility around acids-rave and scipy. They install core packages in a way that avoids common Python 3.12 dependency conflicts.
-
-## Project Structure
-
-```text
-RAVE-TFG/
-  main.py
-  requirements.txt
-  install/
-    install.bat
-    install.sh
-    patch_rave.py
-  input_data/
-    demo_data/
-    user_data/
-  preprocessed_data/
-  models/
-    demo_model/
-      demo_model.ts
-    user_model/
-      checkpoints/
-      exported_model/
-  outputs/
-  src/
-    cli/
-      commands.py
-      interactive_menu.py
-      menu_helpers.py
-      menu_actions_generate.py
-      menu_actions_training.py
-      menu_actions_maintenance.py
-    streaming_gui/
-      app.py
-      ui.py
-      slots.py
-      model_io.py
-      runtime.py
-    streaming/
-      models.py
-      calibration.py
-      engine.py
-```
-
-Where to put your files:
-- Put your training audio in input_data/user_data.
-- Dataset-creation query CSVs can be stored in database/database_creation/demo or database/database_creation/user.
-- Selected IDs CSVs are stored in database/database_download/user.
-- User checkpoints are created in models/user_model/checkpoints.
-- Exported TorchScript models are created in models/user_model/exported_model.
-- Generated WAV files are written to outputs.
-
-## Architecture Overview
-
-High-level entrypoints:
-- main.py: lightweight startup and routing only.
-- src/cli/commands.py: argparse setup and CLI command dispatch.
-- src/cli/interactive_menu.py: interactive menu coordinator.
-- src/stream_gui.py: compatibility launcher and public import path for GUI startup.
-- src/streaming_gui/app.py: composed GUI controller.
-
-CLI menu organization:
-- src/cli/menu_helpers.py: shared prompts, validation, and reusable menu utilities.
-- src/cli/menu_actions_generate.py: Generate & Stream actions.
-- src/cli/menu_actions_training.py: Data & Training actions.
-- src/cli/menu_actions_maintenance.py: Maintenance actions.
-
-Streaming runtime organization:
-- src/streaming_gui/ui.py: GUI widget composition and slot panel building.
-- src/streaming_gui/slots.py: slot lifecycle and slot UI state interactions.
-- src/streaming_gui/model_io.py: model/audio loading and discovery behavior.
-- src/streaming_gui/runtime.py: logging, calibration flow integration, and stream start/stop orchestration.
-- src/streaming/models.py: model slot state container.
-- src/streaming/calibration.py: quick benchmark and recommendation logic.
-- src/streaming/engine.py: producer/consumer realtime audio engine.
-
-Design goal:
-- Keep files focused by responsibility so contributors can reason about one concern at a time (UI orchestration, command routing, calibration, realtime engine, etc.).
-
-## File Size Policy
-
-To keep the codebase understandable and maintainable:
-- Target size: <= 250 lines per Python file.
-- Hard limit: <= 350 lines per Python file.
-- If a file trends above target, split by responsibility (UI/layout, orchestration, I/O, runtime logic, helpers).
-
-Use the checker:
-
-```bash
-python tools/check_file_lengths.py
-```
-
-Custom thresholds:
-
-```bash
-python tools/check_file_lengths.py --warn 250 --max 350
-```
-
-## Main Usage Modes
-
-## 1) Interactive Menu (recommended)
-
-Run:
+## Running the desktop app
 
 ```bash
 python main.py
 ```
 
-Menu options:
-- Main menu:
-  - 1) Generate & Stream
-  - 2) Data & Training
-  - 3) Maintenance
-  - 0) Exit
-- Generate & Stream:
-  - Generate audio from model
-  - Multi-model GUI streaming
-- Data & Training:
-  - Full workflow (preprocess -> train -> export)
-  - Preprocess dataset
-  - Train model
-  - Export model
-  - Train prior (advanced)
-  - Dataset creation
-- Maintenance:
-  - Clean user data
-  - Help / About
+Or, if installed with the `.exe`:
 
-Navigation and setup behavior:
-- Numeric choices only.
-- Submenus include Back, Home, and Exit.
-- Invalid input retries in place until valid.
-- Most operations offer Quick mode (safe defaults) and Advanced mode (full parameter control).
+```bash
+# from the install directory
+.venv\Scripts\pythonw.exe launcher.pyw
+```
 
-This is the easiest path for external users because each option prompts for required inputs.
+The app opens a sidebar with all workflows:
 
-## 2) Command-line interface
+| Section | Pages |
+|---|---|
+| Core Workflow | Preprocess · Train · Export · Generate |
+| Training Extras | Train Prior · Phase Anchors |
+| Generate & Stream | Streaming GUI |
+| Database | Freesound dataset builder |
+| Maintenance | Clean user data |
 
-Run commands as:
+---
+
+## CLI reference
+
+Pass any command directly to skip the GUI:
 
 ```bash
 python main.py <command> [options]
 ```
 
-Available commands:
-- preprocess
-- train
-- export
-- workflow
-- generate
-- stream
-- train_prior
-- clean
+### `preprocess`
 
-## Dataset Creation (Freesound)
-
-The repository now includes a full dataset-creation pipeline for Freesound with interactive curation.
-
-Menu path:
-- Run python main.py
-- Select Data & Training
-- Select Dataset creation
-
-Dataset creation submenu options:
-- DO ALL (first download -> select -> final download)
-- First download only (download all preview candidates from query CSV)
-- Select only (review previews and save selected IDs CSV)
-- Final download only (download audio from selected IDs CSV)
-
-Each option asks for source and destination paths at runtime.
-
-### Input CSV format for first download
-
-Expected columns:
-- queryText
-- API_Key
-- outputDir
-- topNResults
-- duration
-- tag
-- featureExt
-- descriptors
-
-Example row:
-
-```csv
-queryText,API_Key,outputDir,topNResults,duration,tag,featureExt,descriptors
-cello,,descSounds,10,"(0,3)","single-note;acoustic",.json,
-```
-
-Notes:
-- API_Key can be blank if FREESOUND_API_KEY exists in .env.
-- tag supports multiple values separated by comma, semicolon, or pipe.
-- Blank optional fields use defaults.
-
-### Selected IDs CSV format
-
-Expected header:
-
-```csv
-sound_id
-358240
-358268
-```
-
-This CSV is used by the Final download only step.
-
-### Folder behavior in DO ALL
-
-- Final audio is saved in input_data/user_data/queryText.
-- If that folder already exists, a unique suffix is added: queryText_01, queryText_02, etc.
-- Selected IDs CSV is saved in database/database_download/user/queryText.csv.
-- If that CSV name already exists, a unique suffix is added: queryText_01.csv, queryText_02.csv, etc.
-- Temporary preview downloads are cleaned after the workflow.
-
-## Commands Reference
-
-## preprocess
+Chunk and encode an audio folder into an LMDB dataset.
 
 ```bash
-python main.py preprocess <audio_path> [--channels 1] [--no-lazy] [--max-db-size 10]
+python main.py preprocess <audio_path> [--channels 1] [--lazy] [--max-db-size 10]
 ```
 
-Arguments:
-- audio_path (required): folder containing audio files
-- --channels: 1 or 2 (default 1)
-- --no-lazy: disable lazy loading
-- --max-db-size: max LMDB size in GB (default 10)
+Output: `preprocessed_data/`
 
-Output:
-- preprocessed_data/
+### `train`
 
-## train
+Train a RAVE model from a preprocessed dataset.
 
 ```bash
-python main.py train [--name my_model] [--config v2_small] [--db-path preprocessed_data] [--channels 1] [--val-every 1000] [--save-every 10000] [--max-steps 6000000] [--batch-size 8]
+python main.py train [--name my_model] [--config v2_small] [--db-path preprocessed_data] \
+  [--channels 1] [--val-every 1000] [--save-every 10000] [--max-steps 6000000] [--batch-size 8] \
+  [--extra-config noise] [--gin-override KEY=VALUE]
 ```
 
-Output:
-- models/user_model/checkpoints/<name>/...
+Configs: `v1`, `v2`, `v2_small` *(default)*, `v3`, `discrete`, `onnx`, `raspberry`
 
-## export
+Output: `models/user_model/checkpoints/<name>/`
+
+### `export`
+
+Convert a training checkpoint to a deployable TorchScript `.ts` file.
 
 ```bash
-python main.py export [--run-path models/user_model/checkpoints/<model>/version_<n>]
+python main.py export [--run-path models/user_model/checkpoints/<name>/version_0]
 ```
 
-Behavior:
-- If run-path is omitted, latest run is auto-detected.
+If `--run-path` is omitted the latest run is auto-detected.
+Output: `models/user_model/exported_model/<name>.ts`
 
-Output:
-- models/user_model/exported_model/<name>.ts
+### `workflow`
 
-## workflow
+Run preprocess → train → export in one shot.
 
 ```bash
-python main.py workflow <audio_path> [--name my_model] [--config v2_small] [--channels 1] [--val-every 1000] [--max-steps 6000000]
+python main.py workflow <audio_path> [--name my_model] [--config v2_small] \
+  [--channels 1] [--val-every 1000] [--max-steps 6000000]
 ```
 
-Runs preprocess, train, and export in one sequence.
+### `generate`
 
-## generate
+Render audio from a trained model.
 
 ```bash
-python main.py generate [--model models/demo_model/demo_model.ts] [--audio input_data/demo_data/audio1.wav] [--output generated] [--no-random]
+python main.py generate [--model demo/model/demo_model.ts] [--audio demo/audio/audio1.wav] \
+  [--output generated] [--no-random]
 ```
 
-Notes:
-- Random mode generates new audio using sampled latent vectors.
-- Non-random mode reconstructs from input audio latents.
+- Default mode samples random latent vectors.
+- `--no-random` re-encodes the reference audio instead.
 
-Output:
-- outputs/<output>.wav
+Output: `outputs/<output>.wav`
 
-## stream
+### `database`
+
+Download and curate audio from Freesound using a query CSV.
 
 ```bash
-python main.py stream
+python main.py database <jobs.csv> [--selected-csv-dir database/database_download/user] \
+  [--final-root input_data/user_data]
 ```
 
-Launches the multi-model streaming GUI.
+Set `FREESOUND_API_KEY` in a `.env` file or in the CSV's `API_Key` column.
 
-## train_prior
+### `clean`
 
-```bash
-python main.py train_prior --rave <checkpoint.ckpt> --audio <audio_folder> [--name my_prior] [--config decoder_only] [--output models/user_model/prior]
-```
-
-Important:
-- MSPrior requires checkpoint files (.ckpt). Exported .ts files are not the native training input for MSPrior.
-- If you pass a .ts file, the script attempts to locate its original checkpoint.
-
-Outputs:
-- models/user_model/prior/preprocessed_latents/
-- models/user_model/prior/training/<name>/
-- exported prior .ts in the training run folder
-
-## clean
+Delete all user-generated data (preprocessed dataset, checkpoints, exports, outputs) after confirmation.
 
 ```bash
 python main.py clean
 ```
 
-Deletes user-generated data after double confirmation:
-- preprocessed_data/
-- models/user_model/checkpoints/
-- models/user_model/exported_model/
-- outputs/
-- input_data/user_data/
-- database/database_download/user/
+---
 
-Notes:
-- .gitkeep files are preserved during cleaning.
+## Data folders
 
-## Real-Time Streaming Guide
+```
+demo/               ← included demo assets (model + audio samples)
+input_data/
+  user_data/        ← put your training audio here
+preprocessed_data/  ← LMDB dataset (created by preprocess)
+models/
+  user_model/
+    checkpoints/    ← training runs
+    exported_model/ ← .ts files ready for streaming
+    prior/          ← trained priors
+outputs/            ← generated audio
+database/
+  database_download/user/   ← Freesound selected-IDs CSVs
+```
 
-Streaming is provided through a GUI experience.
+---
 
-## Option C: Multi-model GUI streaming
-
-How to open:
-- Run python main.py
-- Select Generate & Stream
-- Select Multi-model GUI streaming
-
-Core capabilities:
-- Dynamic model slots (starts with 1, you can add/remove slots)
-- One model per slot
-- Per-slot controls:
-  - Gain: 0.0 to 1.0
-  - Temperature: 0.1 to 3.0
-  - Smoothing: 0.0 to 0.95
-- Per-slot input source:
-  - Random mode with intensity control
-  - Audio file mode with optional looping
-- Global audio settings:
-  - Sample rate: 22050, 44100, 48000
-  - Chunk duration: 0.5 to 3.0 seconds
-  - Performance mode: Quality, Balanced, Max Stability
-  - Quick calibration: benchmarks decode speed and recommends mode/sample-rate
-  - Auto-calibration before streaming (optional)
-- Live model activation/deactivation while streaming
-- Mixed output from all active slots
-- Runtime metrics in status log (budget, producer/decode/write timing, queue, underruns)
-
-Input mode behavior:
-- Random mode: uses sampled latent noise. Higher intensity and temperature increase variation.
-- Audio mode: encodes selected audio and re-synthesizes via model latent space; loop keeps playback continuous.
-
-Typical supported audio file formats for input mode:
-- wav, mp3, flac, ogg
-
-Quick workflow:
-1. Add one or more slots.
-2. Load model files (.ts) for each slot.
-3. Configure source mode and parameters per slot.
-4. Activate desired slots.
-5. Start streaming.
-6. Adjust controls live.
-
-Mixing tip:
-- As you activate more models, reduce per-slot gain to avoid clipping and keep headroom.
-
-Performance mode behavior:
-- Quality: lowest buffering, best per-slot update rate, least tolerant to CPU overload.
-- Balanced: default mode for general use.
-- Max Stability: highest buffering and stronger adaptive load shedding to avoid pause chunks under high model counts.
-
-Quick calibration behavior:
-- Uses loaded models to run a short decode benchmark.
-- Estimates per-slot decode cost versus current chunk time budget.
-- Recommends a performance mode and sample rate.
-- Can apply recommendations automatically before streaming when enabled.
-
-## Priors: What is supported and what is not
-
-A prior is an autoregressive model over RAVE latent space that can produce more structured latent trajectories.
-
-What is supported in this repository:
-- Training priors using train_prior (MSPrior workflow)
-- Exporting prior artifacts for downstream use
-
-Important limitations to understand:
-- Real-time streaming in this repo is focused on GUI-based model playback and mixing.
-- Practical prior-centric generation is typically done with official RAVE/MSPrior tooling and environments such as Max/MSP nn~.
-
-For external users: this means priors are useful and trainable here, but do not expect the streaming GUI to behave as full prior-driven generation.
-
-## Model Configurations
-
-Common architecture options for training:
-
-| Config | Typical use | Approx minimum GPU memory |
-|---|---|---|
-| v1 | legacy continuous model | 8 GB |
-| v2 | improved continuous quality | 16 GB |
-| v2_small | lighter and practical default | 8 GB |
-| v3 | style-transfer oriented variant | 32 GB |
-| discrete | SoundStream/EnCodec-like discrete mode | 18 GB |
-| onnx | noiseless v1 intended for ONNX export | 6 GB |
-| raspberry | lightweight profile | 5 GB |
-
-Recommendation:
-- Start with v2_small for first experiments.
-- Move to v2 after validating your full pipeline.
-
-## Troubleshooting
-
-No sound during streaming:
-- Check OS output device and system volume.
-- Confirm model path exists and points to a valid .ts file.
-- Increase gain.
-
-Audio sounds choppy:
-- Increase chunk duration (for example 1.5 or 2.0).
-- Switch to Max Stability performance mode.
-- Lower temperature.
-- Increase smoothing.
-- Try 22050 Hz for higher model counts on CPU-bound systems.
-- If using Bluetooth output, test a wired output path for better timing stability.
-
-Export fails with no checkpoint found:
-- Train long enough to produce checkpoints first.
-- Verify run-path points to a valid training run directory.
-
-Preprocess fails due disk/memory pressure:
-- Lower --max-db-size.
-- Use a smaller dataset slice to validate pipeline first.
-
-## Performance Tips
-
-For streaming:
-- Use exported .ts models.
-- Keep chunk duration around 1.0 to 2.0 when CPU is limited.
-- Use lower sample rate if needed for stability.
-- Watch status metrics while streaming: if producer time approaches chunk budget and underruns increase, switch mode or reduce sample rate.
-
-For training:
-- Validate quickly with lower max-steps before long runs.
-- Use TensorBoard:
+## TensorBoard
 
 ```bash
 tensorboard --logdir models/user_model/checkpoints
 ```
 
-## External Integrations
-
-The exported models are designed for interoperability with RAVE ecosystems and can be used in external environments such as Max/MSP or PureData depending on the workflow.
-
+---
 
 ## License
 
-TBD
+MIT License — Copyright (c) 2026 Guillem Garcia
 
 ## Acknowledgments
 
-- ACIDS-IRCAM/RAVE
-- Contributors and maintainers of this repository
+[ACIDS-IRCAM / RAVE](https://github.com/acids-icml/RAVE)

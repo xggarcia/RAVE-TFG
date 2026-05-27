@@ -30,6 +30,8 @@ def _load_app_icon() -> QIcon | None:
         base / "ui" / "assets" / "icon.png",
         base / "ui" / "icon.ico",
         base / "ui" / "icon.png",
+        base.parent / "app_icon.ico",   # install root fallback
+        base.parent / "app_icon.png",
     ]
     for icon_path in candidates:
         if icon_path.exists():

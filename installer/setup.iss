@@ -21,7 +21,8 @@ AppPublisher={#AppPublisher}
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 OutputDir=..\dist\installer
-OutputBaseFilename={#AppName}-Setup-{#AppVersion}
+OutputBaseFilename={#AppName}-Setup
+SetupIconFile=..\app\ui\assets\app_icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -37,6 +38,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "..\app\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\app\ui\assets\app_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\install\patch_rave.py"; DestDir: "{app}\install"; Flags: ignoreversion
 Source: "..\src\*"; DestDir: "{app}\src"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\pyproject.toml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "requirements-install.txt"; DestDir: "{app}"; Flags: ignoreversion
@@ -44,14 +47,16 @@ Source: "launcher.pyw"; DestDir: "{app}"; Flags: ignoreversion
 Source: "uv.exe"; DestDir: "{app}\.uv"; Flags: ignoreversion
 
 [Run]
-Filename: "{app}\.uv\uv.exe"; Parameters: "venv .venv --python 3.10 --seed"; WorkingDir: "{app}"; StatusMsg: "Creating Python 3.10 virtual environment..."; Flags: runhidden waituntilterminated
-Filename: "{app}\.uv\uv.exe"; Parameters: "pip install --python {app}\.venv\Scripts\python.exe -r requirements-install.txt --index-url https://download.pytorch.org/whl/cu121 --extra-index-url https://pypi.org/simple"; WorkingDir: "{app}"; StatusMsg: "Installing dependencies (downloading PyTorch CUDA ~2 GB, please wait)..."; Flags: runhidden waituntilterminated
+Filename: "{app}\.uv\uv.exe"; Parameters: "venv .venv --python 3.10 --seed"; WorkingDir: "{app}"; StatusMsg: "Creating Python 3.10 virtual environment..."; Flags: waituntilterminated
+Filename: "{app}\.uv\uv.exe"; Parameters: "pip install --python .venv --no-deps ""acids-rave>=2.3.0"" ""acids-msprior>=0.1.0"""; WorkingDir: "{app}"; StatusMsg: "Installing RAVE core..."; Flags: waituntilterminated
+Filename: "{app}\.uv\uv.exe"; Parameters: "pip install --python .venv -r requirements-install.txt --index-url https://download.pytorch.org/whl/cu121 --extra-index-url https://pypi.org/simple --index-strategy unsafe-best-match"; WorkingDir: "{app}"; StatusMsg: "Installing dependencies (downloading PyTorch CUDA ~2 GB, please wait)..."; Flags: waituntilterminated
+Filename: "{app}\.venv\Scripts\python.exe"; Parameters: "install\patch_rave.py"; WorkingDir: "{app}"; StatusMsg: "Applying compatibility patches..."; Flags: waituntilterminated
 Filename: "{app}\.venv\Scripts\pythonw.exe"; Parameters: """{app}\launcher.pyw"""; WorkingDir: "{app}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\.venv\Scripts\pythonw.exe"; Parameters: """{app}\launcher.pyw"""; WorkingDir: "{app}"
+Name: "{group}\{#AppName}"; Filename: "{app}\.venv\Scripts\pythonw.exe"; Parameters: """{app}\launcher.pyw"""; WorkingDir: "{app}"; IconFilename: "{app}\app_icon.ico"
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
-Name: "{commondesktop}\{#AppName}"; Filename: "{app}\.venv\Scripts\pythonw.exe"; Parameters: """{app}\launcher.pyw"""; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{commondesktop}\{#AppName}"; Filename: "{app}\.venv\Scripts\pythonw.exe"; Parameters: """{app}\launcher.pyw"""; WorkingDir: "{app}"; IconFilename: "{app}\app_icon.ico"; Tasks: desktopicon
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\.venv"

@@ -149,6 +149,19 @@ python main.py clean
 
 ---
 
+## Demo assets
+
+The repository includes ready-to-use assets in `demo/` so you can try every feature without needing your own files:
+
+| Path | Use for |
+|---|---|
+| `demo/model/demo_model.ts` | Streaming GUI · Generate audio |
+| `demo/audio/audio1–5.wav` | Generate audio · reference input |
+| `demo/database/creation/*.csv` | Database → first download |
+| `demo/database/download/rain_audio.csv` | Database → final download |
+
+---
+
 ## Data folders
 
 ```

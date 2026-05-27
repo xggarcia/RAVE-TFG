@@ -40,11 +40,6 @@ cd RAVE-TFG
 install\install.bat
 ```
 
-**Linux / macOS:**
-```bash
-chmod +x install/install.sh && ./install/install.sh
-```
-
 The install scripts handle the `acids-rave` / `scipy` version conflict automatically.
 
 ---
@@ -53,13 +48,6 @@ The install scripts handle the `acids-rave` / `scipy` version conflict automatic
 
 ```bash
 python main.py
-```
-
-Or, if installed with the `.exe`:
-
-```bash
-# from the install directory
-.venv\Scripts\pythonw.exe launcher.pyw
 ```
 
 The app opens a sidebar with all workflows:

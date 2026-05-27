@@ -196,7 +196,7 @@ class StreamPage(QWidget):
         from app._paths import get_repo_root
         root = get_repo_root()
         candidates = []
-        for folder in [root / "models" / "user_model" / "exported_model", root / "models" / "demo_model"]:
+        for folder in [root / "models" / "user_model" / "exported_model", root / "demo" / "model"]:
             if folder.exists():
                 candidates.extend(str(p) for p in folder.glob("*.ts"))
         self._models = sorted(candidates)

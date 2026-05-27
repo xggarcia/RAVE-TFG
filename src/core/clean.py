@@ -3,16 +3,19 @@
 import os
 import shutil
 
-
-DIRS_TO_CLEAN = [
-    ("preprocessed_data", "Preprocessed dataset"),
-    ("models/user_model/checkpoints", "Training checkpoints"),
-    ("models/user_model/exported_model", "Exported models"),
-    ("outputs", "Generated outputs"),
-    ("descSounds", "Temporary Freesound preview downloads"),
-    ("input_data/user_data", "Downloaded user dataset audio"),
+BUCKETS = [
+    ("preprocessed_data",               "Preprocessed dataset"),
+    ("models/user_model/checkpoints",   "Training checkpoints"),
+    ("models/user_model/exported_model","Exported models"),
+    ("outputs",                         "Generated outputs"),
+    ("descSounds",                      "Temporary Freesound preview downloads"),
+    ("input_data/user_data",            "Downloaded user dataset audio"),
     ("database/database_download/user", "User-selected sound ID CSV files"),
 ]
+_DELETE_ENTIRE = {"descSounds"}
+
+# Alias kept for CLI compatibility
+DIRS_TO_CLEAN = BUCKETS
 
 
 def _non_gitkeep_contents(dir_path):

@@ -90,13 +90,13 @@ class GeneratePage(QWidget):
         body = panel.body_layout()
 
         self._model = FileInput(
-            value="models/demo_model/demo_model.ts",
-            placeholder="models/demo_model/demo_model.ts",
+            value="demo/model/demo_model.ts",
+            placeholder="demo/model/demo_model.ts",
             directory=False,
         )
         self._audio = FileInput(
-            value="input_data/demo_data/audio1.wav",
-            placeholder="input_data/demo_data/audio1.wav",
+            value="demo/audio/audio1.wav",
+            placeholder="demo/audio/audio1.wav",
             directory=False,
         )
         self._name = QLineEdit("generated_audio")

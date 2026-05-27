@@ -2,17 +2,7 @@ import os
 import shutil
 from PySide6.QtCore import QThread, Signal
 
-# Mirrors the bucket definitions in src/clean.py
-BUCKETS = [
-    ("preprocessed_data",                    "Preprocessed LMDBs"),
-    ("models/user_model/checkpoints",         "Training checkpoints"),
-    ("models/user_model/exported_model",      "Exported models"),
-    ("outputs",                              "Generated outputs"),
-    ("descSounds",                           "Temp Freesound downloads"),
-    ("input_data/user_data",                 "Downloaded audio"),
-    ("database/database_download/user",      "User CSV files"),
-]
-_DELETE_ENTIRE = {"descSounds"}
+from src.core.clean import BUCKETS, _DELETE_ENTIRE
 
 
 def scan_buckets() -> list[dict]:

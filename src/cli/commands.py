@@ -36,8 +36,8 @@ def build_parser():
     workflow_parser.add_argument("--max-steps", type=int, default=6000000, help="Max training steps (default: 6000000)")
 
     generate_parser = subparsers.add_parser("generate", help="Generate audio using a trained model")
-    generate_parser.add_argument("--model", default="models/demo_model/demo_model.ts", help="Path to model file")
-    generate_parser.add_argument("--audio", default="input_data/demo_data/audio1.wav", help="Path to sample audio file")
+    generate_parser.add_argument("--model", default="demo/model/demo_model.ts", help="Path to model file")
+    generate_parser.add_argument("--audio", default="demo/audio/audio1.wav", help="Path to sample audio file")
     generate_parser.add_argument("--output", default="generated", help="Output filename (without extension)")
     generate_parser.add_argument("--no-random", action="store_true", help="Use input audio's latent instead of random")
 

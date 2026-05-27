@@ -11,7 +11,7 @@ import numpy as np
 torch.set_grad_enabled(False)
 
 
-def UseModel(model_path="models/demo_model/demo_model.ts", audio_path='input_data/demo_data/audio1.wav', sr=44100, random=True, output_name="Output_audio", duration=30):
+def UseModel(model_path="demo/model/demo_model.ts", audio_path='demo/audio/audio1.wav', sr=44100, random=True, output_name="Output_audio", duration=30):
     """
     Generate audio from random latent vectors using a RAVE model.
     

@@ -1,21 +1,8 @@
 """Generic worker for dataset-creation backend calls."""
 import sys
-import io
 from PySide6.QtCore import QThread, Signal
 
-
-class _Tee(io.TextIOBase):
-    def __init__(self, original, callback):
-        self._orig = original
-        self._cb = callback
-
-    def write(self, text):
-        if text.strip():
-            self._cb(text.rstrip())
-        return self._orig.write(text)
-
-    def flush(self):
-        self._orig.flush()
+from app.workers._common import _Tee
 
 
 class DatasetWorker(QThread):

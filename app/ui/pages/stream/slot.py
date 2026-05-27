@@ -8,6 +8,13 @@ from app.ui.widgets.knob import Knob
 from app.ui.widgets.spectrogram import SpectrogramWidget
 from app.ui.widgets.vu import VUMeter
 
+def _trim_name(path: str | None, max_chars: int = 14) -> str:
+    if not path:
+        return "No model"
+    name = Path(path).name
+    return name if len(name) <= max_chars else name[:max_chars] + "…"
+
+
 _PWR_ON  = f"color:#000; background:{ACID}; border:1px solid {ACID}; border-radius:4px; font-size:10px; padding:2px 7px;"
 _PWR_OFF = f"color:{FG3}; background:transparent; border:1px solid {LINE0}; border-radius:4px; font-size:10px; padding:2px 7px;"
 
@@ -90,7 +97,8 @@ class SlotPanel(Panel):
         right_widget.setStyleSheet("background:transparent;")
         right_widget.setLayout(right_row)
 
-        self._title = section_title(Path(selected_model).name if selected_model else "No model")
+        self._title = section_title(_trim_name(selected_model))
+        self._title.setToolTip(Path(selected_model).name if selected_model else "")
         self.add_header(self._title, right_widget)
 
         # Picker section — always enabled (browse buttons must work when slot is off)
@@ -198,7 +206,8 @@ class SlotPanel(Panel):
         self._model_combo.blockSignals(prev)
 
         current = self.current_model()
-        self._title.setText(Path(current).name if current else "No model")
+        self._title.setText(_trim_name(current))
+        self._title.setToolTip(Path(current).name if current else "")
 
     def current_model(self) -> str | None:
         value = self._model_combo.currentData()
@@ -219,7 +228,8 @@ class SlotPanel(Panel):
 
     def _emit_model(self, _):
         current = self.current_model()
-        self._title.setText(Path(current).name if current else "No model")
+        self._title.setText(_trim_name(current))
+        self._title.setToolTip(Path(current).name if current else "")
         self.modelChanged.emit(self._index, current or "")
 
     def _browse_model(self):

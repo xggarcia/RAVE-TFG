@@ -1,7 +1,7 @@
 """TrainWorker — runs `rave train` via QProcess and parses stdout live."""
 import re
 import sys
-from PySide6.QtCore import QObject, QProcess, Signal
+from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, Signal
 
 # Strip ANSI escape codes before parsing
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mK]|\r")
@@ -43,6 +43,9 @@ class TrainWorker(QObject):
 
         self._proc = QProcess()
         self._proc.setProcessChannelMode(QProcess.MergedChannels)
+        env = QProcessEnvironment.systemEnvironment()
+        env.insert("PYTHONUNBUFFERED", "1")
+        self._proc.setProcessEnvironment(env)
         self._proc.readyReadStandardOutput.connect(self._on_output)
         self._proc.finished.connect(self._on_finished)
 

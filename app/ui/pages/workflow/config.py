@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QComboBox,
@@ -38,12 +38,13 @@ if TYPE_CHECKING:
 EXTRA_CONFIGS = [
     ("causal", "causal convolutions"),
     ("noise",  "noise synthesizer V2"),
-    ("hybrid", "mel-spectrogram input"),
 ]
 DEFAULT_ON = {"noise", "causal"}
 
 
 class _ConfigChip(QWidget):
+    toggled = Signal(bool)
+
     def __init__(self, key: str, desc: str, on: bool = False, parent=None):
         super().__init__(parent)
         self.key = key
@@ -70,6 +71,7 @@ class _ConfigChip(QWidget):
             f"color:{ACID if self._on else FG1}; font-size:11px; {MONO} background:transparent;"
         )
         self.update()
+        self.toggled.emit(self._on)
 
     def paintEvent(self, event):
         p = QPainter(self)

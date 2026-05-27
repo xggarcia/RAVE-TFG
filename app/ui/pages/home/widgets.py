@@ -29,8 +29,10 @@ SECTIONS = [
         "desc": "Main pipeline: preprocess, train, and export.",
         "hue": AMBER,
         "tiles": [
-            {"id": "dataset", "label": "Dataset creation", "sub": "wizard · 7 steps"},
-            {"id": "train",   "label": "Train model",      "sub": "pipeline: preprocess → train → export"},
+            {"id": "dataset",    "label": "Dataset creation", "sub": "wizard · 7 steps"},
+            {"id": "preprocess", "label": "Preprocess",        "sub": "chunk · normalize · lmdb"},
+            {"id": "train",      "label": "Train model",       "sub": "live log · checkpoint resume"},
+            {"id": "export",     "label": "Export model",      "sub": "torchscript · streaming"},
         ],
     },
     {

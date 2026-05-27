@@ -30,7 +30,7 @@ class PreprocessPage(QWidget):
         self._start_btn.clicked.connect(self._start)
 
         root.addWidget(PageHeader(
-            crumbs=["Data & Training", "Preprocess"],
+            crumbs=["Core Workflow", "Preprocess"],
             title="Preprocess dataset",
             desc="Convert an audio folder into an LMDB training dataset.",
             actions=[self._start_btn],

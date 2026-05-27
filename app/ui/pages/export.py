@@ -1,23 +1,14 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QFrame, QPushButton, QLineEdit,
+    QWidget, QVBoxLayout, QScrollArea, QFrame, QPushButton, QLineEdit,
 )
 from PySide6.QtCore import Qt
 
 from app.ui.widgets.form import (
     PageHeader, Panel, Field, FileInput, Toggle, section_title, _lbl,
-    BG0, BG1, FG0, FG1, FG2, FG3, LINE1, ACID, MONO,
+    BG0, BG1, FG0, FG3, LINE1, MONO,
 )
 from app.ui.widgets.progress_panel import ProgressPanel
 from app.workers.export_worker import ExportWorker
-
-RUN_META = [
-    ("Name",        "—"),
-    ("Config",      "—"),
-    ("Last step",   "—"),
-    ("Best val",    "—"),
-    ("Checkpoint",  "—"),
-    ("Trained",     "—"),
-]
 
 
 class ExportPage(QWidget):
@@ -37,7 +28,7 @@ class ExportPage(QWidget):
         self._export_btn.clicked.connect(self._start)
 
         root.addWidget(PageHeader(
-            crumbs=["Data & Training", "Export Model"],
+            crumbs=["Core Workflow", "Export Model"],
             title="Export model",
             desc="Convert a training run into a deployable TorchScript .ts file.",
             actions=[self._export_btn],
@@ -53,11 +44,7 @@ class ExportPage(QWidget):
         cl.setContentsMargins(24, 24, 24, 24)
         cl.setSpacing(20)
 
-        cols = QHBoxLayout()
-        cols.setSpacing(20)
-        cols.addWidget(self._build_params(), 1)
-        cols.addWidget(self._build_run_info(), 0)
-        cl.addLayout(cols)
+        cl.addWidget(self._build_params())
 
         self._progress = ProgressPanel()
         cl.addWidget(self._progress)
@@ -87,25 +74,6 @@ class ExportPage(QWidget):
         self._dest_input = FileInput(directory=True, placeholder="~/exports/")
         body.addWidget(Field("Destination", inline=True).add(self._dest_input))
 
-        body.addStretch()
-        return panel
-
-    def _build_run_info(self) -> QWidget:
-        panel = Panel()
-        panel.setFixedWidth(300)
-        panel.add_header(section_title("Detected run"))
-        body = panel.body_layout()
-
-        for key, val in RUN_META:
-            row = QHBoxLayout()
-            row.addWidget(_lbl(key, size=10, color=FG3, mono=True, spacing="1px"))
-            row.addStretch()
-            row.addWidget(_lbl(val, size=11, color=FG0, mono=True))
-            body.addLayout(row)
-
-        hint = _lbl("Select a run folder to see details.", size=10, color=FG3)
-        hint.setWordWrap(True)
-        body.addWidget(hint)
         body.addStretch()
         return panel
 

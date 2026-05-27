@@ -1,4 +1,4 @@
-"""Live training panel: stat strip + log stream + live panel host."""
+"""Live training panel: log stream + error panel."""
 from PySide6.QtCore import Slot
 from PySide6.QtGui import QColor, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
@@ -17,7 +17,6 @@ from app.ui.widgets.form import (
     BG2,
     BG3,
     FG1,
-    FG2,
     FG3,
     LINE0,
     MAG,
@@ -26,61 +25,9 @@ from app.ui.widgets.form import (
     _lbl,
     section_title,
 )
-from app.ui.pages.train.monitor import ChartPanel, ErrorPanel
-
-_STAT_KEYS = [
-    ("Step",     "—", "#f0f4ee"),
-    ("of",       "—", FG2),
-    ("it/s",     "—", ACID),
-    ("Loss",     "—", ACID),
-    ("Val loss", "—", "#f0f4ee"),
-    ("ETA",      "—", AMBER),
-]
+from app.ui.pages.train.monitor import ErrorPanel
 
 LOG_COLORS = {"INFO": ACID, "WARN": AMBER, "ERR": MAG}
-
-
-class _StatCell(QWidget):
-    def __init__(self, label: str, color: str, parent=None):
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(2)
-        layout.addWidget(_lbl(label, size=9, color=FG3, mono=True, spacing="1px"))
-        self._val = _lbl("—", size=18, color=color, mono=True, bold=True)
-        layout.addWidget(self._val)
-
-    def set_value(self, v: str):
-        self._val.setText(v)
-
-
-class StatStrip(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setStyleSheet(f"background:{BG2}; border-bottom:1px solid {LINE0};")
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(18, 14, 18, 14)
-        layout.setSpacing(0)
-        self._cells: dict[str, _StatCell] = {}
-        for i, (key, _, color) in enumerate(_STAT_KEYS):
-            cell = _StatCell(key, color)
-            self._cells[key] = cell
-            layout.addWidget(cell, 1)
-            if i < len(_STAT_KEYS) - 1:
-                sep = QWidget()
-                sep.setFixedSize(1, 40)
-                sep.setStyleSheet(f"background:{LINE0};")
-                layout.addWidget(sep)
-
-    def update(self, state: dict):
-        self._cells["Step"].set_value(f"{state.get('step', 0):,}")
-        self._cells["of"].set_value(f"{state.get('max_steps', 0):,}")
-        self._cells["it/s"].set_value(f"{state.get('it_s', 0.0):.2f}")
-        self._cells["Loss"].set_value(f"{state.get('loss', 0.0):.4f}")
-        self._cells["Val loss"].set_value(
-            f"{state.get('val_loss', 0.0):.4f}" if state.get('val_loss') else "—"
-        )
-        self._cells["ETA"].set_value(state.get("eta", "—"))
 
 
 class LogPanel(QWidget):
@@ -155,55 +102,30 @@ class LogPanel(QWidget):
 
 
 class LivePanel(QWidget):
-    """Stats + chart + log, shown once training starts."""
+    """Log stream + error panel, shown once training starts."""
 
     def __init__(self, max_steps: int = 0, parent=None):
         super().__init__(parent)
-        self._max_steps = max_steps
         self.hide()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 16, 0, 0)
         layout.setSpacing(16)
 
-        stat_panel = Panel()
-        self._stats = StatStrip()
-        stat_panel._root.addWidget(self._stats)
-        layout.addWidget(stat_panel)
-
-        cols = QHBoxLayout()
-        cols.setSpacing(20)
-
-        left_panel = Panel()
-        self._chart = ChartPanel()
-        left_panel._root.addWidget(self._chart)
-        cols.addWidget(left_panel, 1)
-
         log_panel_wrap = Panel()
-        log_panel_wrap.setFixedWidth(360)
         self._log_panel = LogPanel()
         log_panel_wrap._root.addWidget(self._log_panel)
-        cols.addWidget(log_panel_wrap)
-
-        layout.addLayout(cols)
+        layout.addWidget(log_panel_wrap)
 
         self._error = ErrorPanel()
         layout.addWidget(self._error)
 
-    def reset(self, max_steps: int):
-        self._max_steps = max_steps
-        self._chart.clear()
+    def reset(self, max_steps: int = 0):
         self._log_panel.clear()
         self._error.hide()
 
     @Slot(dict)
     def update_progress(self, state: dict):
-        state["max_steps"] = self._max_steps
-        self._stats.update(state)
-        self._chart.add_point(
-            state.get("step", 0),
-            state.get("loss", 0.0),
-            state.get("val_loss") or None,
-        )
+        pass
 
     @Slot(str, str)
     def append_log(self, level: str, message: str):

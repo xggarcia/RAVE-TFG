@@ -21,6 +21,16 @@ _BTN_OFF = (
 _PHASE_COLORS = ["#a8e63d", "#40d0d8", "#d840b8", "#e8c040", "#e0406a"]
 
 
+def _lighten(hex_color: str, amount: float) -> str:
+    """Blend hex_color toward white by `amount` (0.0 = original, 1.0 = white)."""
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    r = int(r + (255 - r) * amount)
+    g = int(g + (255 - g) * amount)
+    b = int(b + (255 - b) * amount)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
 class _LatentMapWidget(QWidget):
     """2D PCA scatter map of the latent space. Click to steer generation."""
 
@@ -65,9 +75,11 @@ class _LatentMapWidget(QWidget):
                 self._plot.addItem(sc)
             ax, ay = phase.get("anchor_xy", [0.0, 0.0])
             dot = pg.ScatterPlotItem(x=[ax], y=[ay], size=12,
-                pen=pg.mkPen(color, width=1.5), brush=pg.mkBrush(color))
+                pen=pg.mkPen("#ffffff", width=1.5), brush=pg.mkBrush(_lighten(color, 0.45)))
             self._plot.addItem(dot)
-            txt = pg.TextItem(text=phase.get("label", f"p{i}"), color=color, anchor=(0, 1))
+            txt = pg.TextItem(text=phase.get("label", f"p{i}"),
+                              color=_lighten(color, 0.45), anchor=(0, 1),
+                              fill=pg.mkBrush(20, 26, 20, 200))
             txt.setFont(pg.QtGui.QFont("JetBrains Mono", 8))
             txt.setPos(ax + 0.01, ay + 0.01)
             self._plot.addItem(txt)

@@ -27,6 +27,16 @@ _ANCHOR_STYLES = [
 ]
 
 
+def _lighten(hex_color: str, amount: float) -> str:
+    """Blend hex_color toward white by `amount` (0.0 = original, 1.0 = white)."""
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    r = int(r + (255 - r) * amount)
+    g = int(g + (255 - g) * amount)
+    b = int(b + (255 - b) * amount)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
 
 class _ScatterPanel(QWidget):
     def __init__(self, parent=None):
@@ -98,12 +108,16 @@ class _ScatterPanel(QWidget):
             ax, ay = phase.get("anchor_xy", [0.0, 0.0])
             dot = pg.ScatterPlotItem(
                 x=[ax], y=[ay], size=13,
-                pen=pg.mkPen(color, width=1.5),
-                brush=pg.mkBrush(color),
+                pen=pg.mkPen("#ffffff", width=1.5),
+                brush=pg.mkBrush(_lighten(color, 0.45)),
             )
             self._plot.addItem(dot)
-            txt = pg.TextItem(text=phase.get("label", f"phase{i}"),
-                              color=color, anchor=(0, 1))
+            txt = pg.TextItem(
+                text=phase.get("label", f"phase{i}"),
+                color=_lighten(color, 0.45),
+                anchor=(0, 1),
+                fill=pg.mkBrush(20, 26, 20, 200),
+            )
             txt.setFont(pg.QtGui.QFont("JetBrains Mono", 8))
             txt.setPos(ax + 0.02, ay + 0.02)
             self._plot.addItem(txt)
@@ -126,7 +140,7 @@ class AnchorsPage(QWidget):
         self._gen_btn.clicked.connect(self._start)
 
         root.addWidget(PageHeader(
-            crumbs=["Data & Training", "Phase Anchors"],
+            crumbs=["Training Extras", "Phase Anchors"],
             title="Generate phase anchors",
             desc="Compute latent anchors per phase from an existing model. "
                  "The Streaming GUI uses these as the four corners of the phase XY pad.",

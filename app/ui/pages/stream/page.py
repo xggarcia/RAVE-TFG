@@ -47,6 +47,7 @@ from app.workers.stream_worker import StreamWorker
 
 class StreamPage(QWidget):
     statusChanged = Signal(str, str)
+    _MAX_SLOTS = 20
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -220,6 +221,8 @@ class StreamPage(QWidget):
         return w
 
     def _add_slot(self):
+        if len(self._slot_assignments) >= self._MAX_SLOTS:
+            return
         self._slot_assignments.append(None)
         self._slot_anchors.append(None)
         self._slot_latent_sizes.append(None)
@@ -364,7 +367,9 @@ class StreamPage(QWidget):
         grid.setHorizontalSpacing(16)
         grid.setVerticalSpacing(16)
 
-        _accents = [ACID, "#40d0d8", "#d840b8", AMBER, "#5090d8", "#e0406a", FG2, "#c8a060"]
+        _accents = [ACID, "#40d0d8", "#d840b8", AMBER, "#5090d8", "#e0406a", FG2, "#c8a060",
+                    "#a060e0", "#60c060", "#e06080", "#60a0e0", "#d0c040", "#a0d0a0", "#e08040",
+                    "#80d0c0", "#c060a0"]
 
         _SLOT_W = 420
 
@@ -385,7 +390,7 @@ class StreamPage(QWidget):
             self._slot_widgets.append(slot)
             grid.addWidget(slot, i // 2, i % 2)
 
-        if not streaming:
+        if not streaming and len(self._slot_assignments) < self._MAX_SLOTS:
             n = len(self._slot_assignments)
             add_btn = self._make_add_slot_btn()
             add_btn.setFixedWidth(_SLOT_W)
@@ -502,6 +507,7 @@ class StreamPage(QWidget):
 
         selected = list(self._slot_assignments)
         self._worker = StreamWorker(selected)
+        self._worker.set_dynamic_stride_enabled(self._dynamic_stride_enabled)
         self._worker.stage.connect(self._on_stage)
         self._worker.log.connect(self._on_log)
         self._worker.slotVu.connect(self._on_slot_vu)

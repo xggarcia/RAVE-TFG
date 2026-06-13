@@ -1,6 +1,5 @@
 """TrainWorker — runs `rave train` via QProcess and parses stdout live."""
 import re
-import sys
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, Signal
 
 # Strip ANSI escape codes before parsing

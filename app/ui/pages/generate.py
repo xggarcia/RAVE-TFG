@@ -1,11 +1,10 @@
 import os
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtCore import Slot
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
-    QLabel,
     QLineEdit,
     QPushButton,
     QScrollArea,
@@ -14,13 +13,10 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.widgets.form import (
-    ACID,
     BG0,
     BG1,
     FG0,
-    FG2,
     FG3,
-    LINE0,
     LINE1,
     MONO,
     Field,

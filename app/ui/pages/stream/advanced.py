@@ -1,5 +1,5 @@
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from app.ui.widgets.form import ACID, BG0, FG2, FG3, LINE0, Panel, _lbl, section_title
 from app.ui.widgets.latent_radar import LatentRadarWidget

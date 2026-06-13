@@ -2,13 +2,12 @@ import threading
 import time
 import traceback
 from collections import deque
-from pathlib import Path
 
 import numpy as np
 import torch
 from PySide6.QtCore import QThread, Signal
 
-from app.workers._stream_models import _SlotState, _detect_model_sr
+from app.workers._stream_models import _SlotState
 from app.workers._stream_loader import (
     _clear_slot_model,
     _encode_audio_for_slot,

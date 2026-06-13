@@ -1,39 +1,9 @@
-"""Workflow config constants, chip widget, and config panel builder."""
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
+"""Training config constants and the extra-config chip widget."""
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
-from PySide6.QtWidgets import (
-    QComboBox,
-    QGridLayout,
-    QHBoxLayout,
-    QLineEdit,
-    QSizePolicy,
-    QWidget,
-)
+from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QWidget
 
-from app.ui.widgets.form import (
-    ACID,
-    BG1,
-    FG0,
-    FG1,
-    FG2,
-    FG3,
-    LINE1,
-    MONO,
-    Field,
-    FileInput,
-    Panel,
-    RadioGroup,
-    Toggle,
-    _lbl,
-    section_title,
-)
-
-if TYPE_CHECKING:
-    from app.ui.pages.workflow.page import WorkflowPage
+from app.ui.widgets.form import ACID, BG1, FG1, FG3, LINE1, MONO, _lbl
 
 EXTRA_CONFIGS = [
     ("causal", "causal convolutions"),
@@ -85,76 +55,3 @@ class _ConfigChip(QWidget):
             p.setBrush(QColor(BG1))
         p.drawRoundedRect(r, 3, 3)
         p.end()
-
-
-def build_config_panel(page: "WorkflowPage") -> QWidget:
-    """Build the run-configuration panel; sets form-field attributes on *page*."""
-    page._chips: list[_ConfigChip] = []
-
-    panel = Panel()
-    panel.add_header(section_title("Run configuration"), _lbl("active", 10, ACID, mono=True))
-    body = panel.body_layout()
-
-    grid = QGridLayout()
-    grid.setContentsMargins(0, 0, 0, 0)
-    grid.setHorizontalSpacing(14)
-    grid.setVerticalSpacing(10)
-
-    _line = (
-        f"background:{BG1}; color:{FG0}; border:1px solid {LINE1};"
-        f" border-radius:4px; padding:6px 10px; {MONO}"
-    )
-    page._audio_input  = FileInput(placeholder="~/datasets/vocals-v2/", directory=True)
-    page._model_name   = QLineEdit("vox-phase3-v2")
-    page._model_name.setStyleSheet(_line)
-    page._config       = QComboBox()
-    page._config.addItems(["v2_small", "v2", "v3", "v3_small"])
-    page._config.setCurrentText("v2")
-    page._channels     = RadioGroup(
-        options=[{"value": "1", "label": "Mono (1)"}, {"value": "2", "label": "Stereo (2)"}],
-        value="1",
-    )
-    page._max_steps    = QLineEdit("500000")
-    page._max_steps.setStyleSheet(_line)
-    page._batch_size   = QLineEdit("8")
-    page._batch_size.setStyleSheet(_line)
-    page._destination  = FileInput(placeholder="models/user_model/exported_model", directory=True)
-    page._val_every    = QLineEdit("10000")
-    page._val_every.setStyleSheet(_line)
-    page._save_every   = QLineEdit("25000")
-    page._save_every.setStyleSheet(_line)
-    page._export_run   = FileInput(placeholder="auto-detect from training", directory=True)
-    page._streaming    = Toggle(on=True)
-    page._export_name  = QLineEdit("model_streaming.ts")
-    page._export_name.setStyleSheet(_line)
-
-    widgets = [
-        Field("Audio folder", inline=False).add(page._audio_input),
-        Field("Model name", inline=False).add(page._model_name),
-        Field("Config", inline=False).add(page._config),
-        Field("Channels", inline=False).add(page._channels),
-        Field("Max steps", inline=False).add(page._max_steps),
-        Field("Batch size", inline=False).add(page._batch_size),
-        Field("Val every", inline=False).add(page._val_every),
-        Field("Save every", inline=False).add(page._save_every),
-        Field("Export destination", inline=False).add(page._destination),
-        Field("Export run folder", hint="Leave blank to auto-detect after training.", inline=False).add(page._export_run),
-        Field("Streaming", hint="Required for real-time use.", inline=False).add(page._streaming),
-        Field("Output name", inline=False).add(page._export_name),
-    ]
-    for i, widget in enumerate(widgets):
-        grid.addWidget(widget, i // 4, i % 4)
-
-    body.addLayout(grid)
-
-    body.addWidget(_lbl("Extra configs", size=10, color=FG2, mono=True, spacing="1px"))
-    chips_row = QHBoxLayout()
-    chips_row.setSpacing(8)
-    for key, desc in EXTRA_CONFIGS:
-        chip = _ConfigChip(key, desc, on=(key in DEFAULT_ON))
-        page._chips.append(chip)
-        chips_row.addWidget(chip)
-    chips_row.addStretch()
-    body.addLayout(chips_row)
-
-    return panel

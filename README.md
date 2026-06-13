@@ -7,7 +7,7 @@ Includes a PySide6 GUI and an optional CLI for scripting.
 
 ## Requirements
 
-- Windows 10/11, Linux, or macOS
+- Windows 10/11
 - Python 3.10
 - CUDA-capable GPU recommended for training (CUDA 12.1)
 - ~3 GB disk space for the Python environment
@@ -54,11 +54,10 @@ The app opens a sidebar with all workflows:
 
 | Section | Pages |
 |---|---|
-| Core Workflow | Preprocess · Train · Export · Generate |
-| Training Extras | Train Prior · Phase Anchors |
-| Generate & Stream | Streaming GUI |
-| Database | Freesound dataset builder |
-| Maintenance | Clean user data |
+| Generate & Stream | Generate Audio · Streaming GUI |
+| Core Workflow | Dataset Creation · Preprocess · Train Model · Export Model |
+| Training Extras | Phase Anchors |
+| Maintenance | Clean User Data |
 
 ---
 
@@ -156,9 +155,14 @@ The repository includes ready-to-use assets in `demo/` so you can try every feat
 | Path | Use for |
 |---|---|
 | `demo/model/demo_model.ts` | Streaming GUI · Generate audio |
-| `demo/audio/audio1–5.wav` | Generate audio · reference input |
+| `demo/model/demo_model_2.ts` | Streaming GUI — second slot, for the multi-model demo |
+| `demo/audio/audio1,2,4,5.wav` | Generate audio · reference input |
 | `demo/database/creation/*.csv` | Database → first download |
 | `demo/database/download/rain_audio.csv` | Database → final download |
+
+> **Model provenance:** `demo_model.ts` is this project's own model (RAVE v2, trained on rain audio).
+> `demo_model_2.ts` is **not** part of this project's work — it is the pretrained *percussion* model
+> released by ACIDS-IRCAM (`rave_percussion_rt`), bundled only to demonstrate real-time multi-model streaming.
 
 ---
 
@@ -173,7 +177,6 @@ models/
   user_model/
     checkpoints/    ← training runs
     exported_model/ ← .ts files ready for streaming
-    prior/          ← trained priors
 outputs/            ← generated audio
 database/
   database_download/user/   ← Freesound selected-IDs CSVs
@@ -195,4 +198,7 @@ MIT License — Copyright (c) 2026 Guillem Garcia
 
 ## Acknowledgments
 
-[ACIDS-IRCAM / RAVE](https://github.com/acids-icml/RAVE)
+[ACIDS-IRCAM / RAVE](https://github.com/acids-ircam/RAVE) — the RAVE architecture and training code.
+
+The bundled `demo/model/demo_model_2.ts` is the pretrained *percussion* RAVE model (`rave_percussion_rt`)
+released by ACIDS-IRCAM, used here under their terms purely for demonstration purposes.

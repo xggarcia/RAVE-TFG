@@ -3,14 +3,14 @@ import csv
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QFrame, QFileDialog, QSizePolicy,
+    QScrollArea, QFrame, QFileDialog,
 )
-from PySide6.QtCore import Qt, Signal, Slot
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen, QKeyEvent
 
 from app.ui.widgets.form import (
-    Panel, FileInput, section_title, _lbl,
-    BG0, BG1, BG2, BG3, FG0, FG1, FG2, FG3, LINE0, LINE1, ACID, ACIDDIM, AMBER, MAG, MONO,
+    Panel, _lbl, BG3, FG0,
+    FG2, FG3, LINE0, LINE1, ACID, ACIDDIM, AMBER, MAG, MONO,
 )
 from app.ui.widgets.waveform import MiniWaveform
 

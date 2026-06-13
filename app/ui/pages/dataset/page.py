@@ -11,8 +11,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.ui.tokens import ACID, BG0, BG1, BG3, FG0, FG2, FG3, LINE0, MONO
-from app.ui.widgets.form import PageHeader, section_title
+from app.ui.tokens import ACID, BG0, BG1, BG3, FG0, LINE0
+from app.ui.widgets.form import PageHeader
 from app.ui.pages.dataset.details import DoAllDetail
 from app.ui.pages.dataset.step_panels import (
     ConvertDetail,

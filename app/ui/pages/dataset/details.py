@@ -2,14 +2,14 @@
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QLineEdit, QScrollArea, QFrame, QInputDialog, QMessageBox,
+    QLineEdit, QInputDialog, QMessageBox,
 )
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 
 from app.ui.widgets.form import (
-    Panel, Field, FileInput, Toggle, section_title, _lbl,
-    BG0, BG1, BG2, FG0, FG2, FG3, LINE0, LINE1, ACID, AMBER, MONO,
+    Panel, Field, FileInput, section_title, _lbl, BG1,
+    BG2, FG0, FG2, FG3, LINE0, LINE1, ACID, AMBER, MONO,
 )
 from app.ui.widgets.progress_panel import ProgressPanel
 from app.workers.dataset_worker import DatasetWorker

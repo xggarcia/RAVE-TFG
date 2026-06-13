@@ -1,11 +1,10 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QScrollArea, QFrame, QPushButton, QLineEdit,
 )
-from PySide6.QtCore import Qt
 
 from app.ui.widgets.form import (
-    PageHeader, Panel, Field, FileInput, Toggle, section_title, _lbl,
-    BG0, BG1, FG0, FG3, LINE1, MONO,
+    PageHeader, Panel, Field, FileInput, Toggle, section_title, BG0,
+    BG1, FG0, LINE1, MONO,
 )
 from app.ui.widgets.progress_panel import ProgressPanel
 from app.workers.export_worker import ExportWorker

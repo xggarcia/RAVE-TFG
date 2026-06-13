@@ -52,7 +52,7 @@ def train_workflow(
     
     # Step 2: Train
     print("\n[Step 2/3] Training model...")
-    out_path = TrainModel(
+    TrainModel(
         name=model_name,
         config=config,
         extra_configs=extra_configs,

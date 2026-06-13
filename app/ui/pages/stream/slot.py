@@ -3,7 +3,7 @@ from pathlib import Path
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QComboBox, QFileDialog, QHBoxLayout, QLabel, QPushButton, QWidget
 
-from app.ui.widgets.form import ACID, AMBER, BLUE, FG0, FG2, FG3, LINE0, Panel, _lbl, section_title
+from app.ui.widgets.form import ACID, AMBER, BLUE, FG0, FG2, FG3, LINE0, Panel, section_title
 from app.ui.widgets.knob import Knob
 from app.ui.widgets.spectrogram import SpectrogramWidget
 from app.ui.widgets.vu import VUMeter

@@ -101,7 +101,6 @@ class ProgressPanel(QWidget):
 
     @Slot(str, str)
     def append_log_level(self, level: str, line: str):
-        color = AMBER if level == "WARN" else MAG if level == "ERR" else ACID
         self.append_log(f"[{level}] {line}")
 
     def set_status(self, text: str):

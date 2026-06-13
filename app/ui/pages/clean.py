@@ -1,13 +1,13 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QFrame, QPushButton,
-    QLabel, QCheckBox, QLineEdit, QDialog, QDialogButtonBox,
+    QLabel, QCheckBox, QLineEdit, QDialog,
 )
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QColor, QPainter, QPen
 
 from app.ui.widgets.form import (
     PageHeader, Panel, section_title, _lbl,
-    BG0, BG1, BG2, BG3, FG0, FG1, FG2, FG3, LINE0, LINE1, MAG, ACID, MONO,
+    BG0, BG1, BG2, FG0, FG1, FG2, FG3, LINE0, LINE1, MAG, MONO,
 )
 from app.ui.widgets.progress_panel import ProgressPanel
 from app.workers.clean_worker import CleanWorker, scan_buckets, fmt_size

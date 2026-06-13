@@ -1,13 +1,13 @@
 """Phase anchors page — generate latent anchors + PCA scatter preview."""
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QFrame,
-    QPushButton, QLabel, QLineEdit,
+    QPushButton, QLineEdit,
 )
 from PySide6.QtCore import Qt, Slot
 
 from app.ui.widgets.form import (
     PageHeader, Panel, Field, FileInput, section_title, _lbl,
-    BG0, BG1, BG2, FG0, FG1, FG2, FG3, LINE0, LINE1, ACID, AMBER, MAG, BLUE, MONO,
+    BG0, BG1, FG0, FG3, LINE0, LINE1, MONO,
 )
 from app.ui.widgets.progress_panel import ProgressPanel
 from app.workers.dataset_worker import DatasetWorker

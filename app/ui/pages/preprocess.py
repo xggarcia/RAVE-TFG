@@ -1,12 +1,11 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QFrame,
-    QPushButton, QLabel, QLineEdit, QComboBox, QSizePolicy,
+    QPushButton, QLineEdit, QComboBox,
 )
-from PySide6.QtCore import Qt
 
 from app.ui.widgets.form import (
     PageHeader, Panel, Field, FileInput, RadioGroup, Toggle, section_title, _lbl,
-    BG0, BG1, BG2, FG0, FG1, FG2, FG3, LINE0, ACID, AMBER, MONO,
+    BG0, BG1, FG0, FG3, MONO,
 )
 from app.ui.widgets.progress_panel import ProgressPanel
 from app.workers.preprocess_worker import PreprocessWorker
